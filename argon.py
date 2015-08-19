@@ -333,20 +333,25 @@ class Option:
 
 
 #------------------------------------------------------------------------------#
-class Arguments(Graph):
+class Arguments:
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    # Internal errors
+    class _ContextFound(Exception): pass
+    class _CloseCurrentOption(Exception): pass
+
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    # Public errors
     class ArgumentsException(Exception): pass
     class InvalidOptionMember(ArgumentsException): pass
     class InvalidArgument(ArgumentsException): pass
     class ArgumentOutOfContext(ArgumentsException): pass
     class CyclicOptionRelations(ArgumentsException): pass
 
-    class _ContextFound(Exception): pass
-
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-    # Branch-builder helper recursive function
+    # Internal branch-builder helper recursive function
     @staticmethod
     def _branch(parent):
         branch = {}
@@ -413,114 +418,171 @@ class Arguments(Graph):
 
         Errors:
             Option.FinishedOption
+                Raised when trying to add value to STATE_SWITCH or SINGLE_VALUE
             Option.UnfinishedOption
+                Raised when name given but value is missing from NAMED_VALUES
             Arguments.InvalidArgument
+                Raised when trying to add value to a non-open option
             Arguments.ArgumentOutOfContext
+                Raised when option is valid but not in the given context
         """
         flags        = self._flags
         hierarchy    = self._hierarchy
+        arguments    = iter(arguments)
         context      = hierarchy
         contexts     = [context]
         curr_values  = None
         open_values  = []
         curr_members = None
         open_members = []
+        processed    = []
         #unique_flags = set()
 
-        for argument in arguments:
-            # Get option object associated with flag (argument)
+        #for argument in arguments:
+        while True:
+            # If there arguments left unprocessed
             try:
-                option = flags[argument]
-            # If no option found
-            except KeyError:
-                # If there is an open option waiting for values
+                # Get next argument
+                argument = next(arguments)
+                # Get option object associated with flag (argument)
                 try:
-                    curr_values.add_value(argument)
-                    # Move on to the next argument
-                    continue
-                # If there are no open options waiting for values
-                except AttributeError:
-                    raise Arguments.InvalidArgument(argument) from None
+                    option = flags[argument]
+                # If no option found
+                except KeyError:
+                    # If there is an open option waiting for values
+                    try:
+                        curr_values.add_value(argument)
+                        # Move on to the next argument
+                        continue
+                    # If there are no open options waiting for values
+                    except AttributeError:
+                        raise Arguments.InvalidArgument(argument) from None
 
-            # Try to find the context of the flag
-            name = option.name
+                # Try to find the context of the flag
+                name = option.name
+            # If all arguments processed
+            except StopIteration:
+                # Start a "close-all-left" cycle, where an invalid-name will
+                # cause the context-search to close all left open options
+                name = NotImplemented
+
             try:
                 while True:
-                    # If context of option found (current context)
-                    if name in context:
-                        # If nth argument
+                    try:
+                        # If context of option found (current context)
+                        if name in context:
+                            # Close current context and open a new option
+                            raise Arguments._CloseCurrentOption(True)
+
+                        # Check if context of option is a new sub-context
+                        for sub_context in context.values():
+                            # If context of option found
+                            if name in sub_context:
+                                # Open new context
+                                contexts.append(sub_context)
+                                # Jump one level down
+                                context = sub_context
+                                # Finished closing
+                                raise Arguments._ContextFound
+
+                        # If context of option is not found
+                        # (in current context and in sub-context)
+                        # Close current context and jump one level up
                         try:
-                            # Close current option
-                            curr = (curr_values.name, curr_values.close(name), open_members.pop())
+                            contexts.pop()
+                            context = contexts[-1]
+                        except IndexError:
+                            # If this is a regular cycle, not a "close-all-left"
+                            if name is not NotImplemented:
+                                raise Arguments.ArgumentOutOfContext(argument) from None
+
+                        # Close current option and
+                        # continue searching for context
+                        raise Arguments._CloseCurrentOption(False)
+
+                    # Close current option
+                    except Arguments._CloseCurrentOption as message:
+                        # If this is the nth argument
+                        try:
+                            # TODO: At some point add better feedback to object
+                            #       hook when closing, to produce error like
+                            #       this:
+                            #
+                            #           fullcmd --this --that abc xyz
+                            #                   ~~~~~~        ^^^
+                            #       UnfinishedOptionError: this, abc
+                            #
+
+                            # Create option-tuple
+                            curr = (curr_values.name,
+                                    curr_values.close(name),
+                                    open_members.pop())
+
+                            # Store last members as a processed value
+                            processed = curr[-1]
+
+                            # Jump a level up
                             curr_members = open_members[-1]
                             curr_members.append(curr)
                             open_values.pop()
                             curr_values = open_values[-1]
-                        # If first argument
+
+                        # If this is the first argument
                         except AttributeError:
                             pass
-                        # Finished closing
-                        raise Arguments._ContextFound
 
-                    # Check if context of option is a new sub-context
-                    for sub_context in context.values():
-                        # If context of option found
-                        if name in sub_context:
-                            # Open new context
-                            contexts.append(sub_context)
-                            # Jump one level down
-                            context = sub_context
-                            # Finished closing
+                        # If context has also found
+                        if message.args[0]:
                             raise Arguments._ContextFound
-                    # If context of option is not found
-                    # (in current context and in sub-context)
-                    # Close current context and jump one level up
-                    contexts.pop()
-                    context = contexts[-1]
-                    # Close current option
-                    # TODO: At some point add better feedback to object hook
-                    #       when closing, to produce error like this:
-                    #       UnfinishedOption: this, abc
-                    #           fullcmd --this --that abc xyz
-                    #                   ~~~~~~        ^^^
-                    curr = (curr_values.name, curr_values.close(name), open_members.pop())
-                    # Jump a level up
-                    curr_members = open_members[-1]
-                    curr_members.append(curr)
-                    open_values.pop()
-                    curr_values = open_values[-1]
-            except IndexError:
-                raise Arguments.ArgumentOutOfContext(argument) from None
+
+            # If a new option can be opened
             except Arguments._ContextFound:
-                pass
+                # Open a new option
+                curr_values  = option.object_hook(name)
+                curr_members = []
+                open_values.append(curr_values)
+                open_members.append(curr_members)
 
-            # Open a new option
-            curr_values  = option.object_hook(name)
-            curr_members = []
-            open_values.append(curr_values)
-            open_members.append(curr_members)
-
-        # Close all open options
-        while True:
-            try:
-                processed = open_members.pop()
-                # Close current option
-                curr = (curr_values.name, curr_values.close(name), processed)
-                # Jump a level up
-                curr_members = open_members[-1]
-                curr_members.append(curr)
-                open_values.pop()
-                curr_values = open_values[-1]
+            # If reached the top-level and the context still did not match
             except IndexError:
-                processed = [(curr_values.name, curr_values.close(name), processed)]
-                break
+                # Return translated arguments
+                return [(curr_values.name,
+                         curr_values.close(name),
+                         processed)]
 
-        # Return translated arguments
-        return processed
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-    def traverse_args(self, arguments):
+    @staticmethod
+    def branch_traverse(options):
+        """
+        Returns:
+
+            (<long_flag>, <value>)
+        """
+        for flag, value, members in options:
+            yield flag, value
+            yield from Arguments.branch_traverse(members)
+
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    @staticmethod
+    def branch_full_traverse(options, path=[]):
+        """
+        Returns:
+
+            ([<group>..., <long_flag>], <value>)
+        """
+        for flag, value, members in options:
+            path.append(flag)
+            yield path, value
+            yield from Arguments.branch_full_traverse(members, path)
+            path.pop()
+
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    @staticmethod
+    def breadth_first_traverse(options):
         """
         Traverse will walk through the translated arguments as a generator.
         Unlike the self.translate_args() method, it returns a yuple of four
@@ -528,7 +590,7 @@ class Arguments(Graph):
 
             (<group>, <long_flag>, <value>, [<members>])
         """
-        options = [(None, self.translate_args(arguments))]
+        options = [(None, options)]
         for group, gmembers in options:
             for flag, value, fmembers in gmembers:
                 yield group, flag, value, fmembers
@@ -538,75 +600,3 @@ class Arguments(Graph):
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     def write_help(self, file=stdout):
         pass
-
-
-
-#------------------------------------------------------------------------------#
-if __name__ == '__main__':
-    args = Arguments(Option(long_flag   = 'pmt',
-                            long_prefix = '',
-                            flag_type   = Option.UNIQUE,
-                            value_type  = Option.STATE_SWITCH,
-                            members     = ('set', 'add'),
-                            member_type = Option.ONE),
-                     Option(long_flag   = 'set',
-                            long_prefix = '',
-                            flag_type   = Option.UNIQUE,
-                            members     = ('target', 'values')),
-                     Option(long_flag   = 'add',
-                            long_prefix = '',
-                            flag_type   = Option.UNIQUE,
-                            members     = ('target', 'values')),
-                     Option(long_flag   = 'target',
-                            short_flags = 't',
-                            members     = ('milestone', 'label-name')),
-                     Option(long_flag   = 'values',
-                            short_flags = 'v',
-                            value_type  = Option.NAMED_VALUES),
-                     Option(long_flag   = 'milestone',
-                            short_flags = 'm'),
-                     Option(long_flag   = 'label-name',
-                            short_flags = 'L'))
-
-
-    # Example command
-    cmd = ('pmt', 'set', 'issues', '-t', 'milestones',
-                                         '-m', 'open',
-                                   '-t', 'issues',
-                                         '-L', 'MyOtherLabel',
-                                   '-v',
-                                         'status', 'closed',
-                                         'labels', 'MyLabel',)
-
-    print('Processing command:', ' '.join(cmd), sep='\n    ', end='\n\n')
-
-    print('Translated:\n')
-    print(args.translate_args(cmd))
-
-    print('\nTraversed:\n')
-    # Get processed arguments
-    args = args.traverse_args(cmd)
-
-    # Get command and its value (if any)
-    _, command, value, _ = next(args)
-    print('command:', command)
-
-    # Process flags
-    for group, flag, value, _ in args:
-        print(group, '.', flag, ' = ', value, sep='')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
