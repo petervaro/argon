@@ -19,8 +19,10 @@ from dagger.tools import topo_sort, a_star, DAGCycleError
 #------------------------------------------------------------------------------#
 class Option:
     """
-    Valid characters for flags are:
+    By default valid characters for flags are:
         abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-
+    But this can be overwritten, by passing a `char_validator` function to the
+    Option object during the initialization.
 
     member_type:
     ------------
@@ -90,7 +92,7 @@ class Option:
 
                 cmd --this x --group1 --this y --group2 --this z
 
-            However the followings are not valid:
+            However the next examples are not:
 
                 cmd --this x --this y
                 cmd --this x --group --this y --this z
@@ -101,14 +103,13 @@ class Option:
 
                 cmd --this x
 
-            However the next example is not:
+            However the next examples are not:
 
                 cmd --this x --group --this y
                 cmd --group --this x --this y
                 cmd --group1 --this x --group2 --this y
     """
 
-    __VALID       = ascii_letters + digits + '_-'
     __FLAG_TYPE   = tuple(range(3))
     __MEMBER_TYPE = tuple(range(2))
 
@@ -123,10 +124,10 @@ class Option:
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-    class OptionException(Exception): pass
-    class InvalidFlagName(OptionException): pass
-    class FinishedOption(OptionException): pass
-    class UnfinishedOption(OptionException): pass
+    class OptionException(Exception)        : pass
+    class InvalidFlagName(OptionException)  : pass
+    class FinishedOption(OptionException)   : pass
+    class UnfinishedOption(OptionException) : pass
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
@@ -240,6 +241,15 @@ class Option:
                     raise Option.UnfinishedOption((self._name, flag)) from None
             return self._values
 
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    @staticmethod
+    def CHAR_VALIDATOR(string, valid_chars=ascii_letters + digits + '_-'):
+        for char in string:
+            if char not in valid_chars:
+                raise Option.InvalidFlagName(
+                    'Flag name {!r} has an '
+                    'invalid character {!r}'.format(string, char)) from None
+
 
     # 'value_type-enums'
     __VALUE_TYPE = (STATE_SWITCH,
@@ -269,6 +279,18 @@ class Option:
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     @property
+    def flag_type(self):
+        return self._flag_type
+
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    @property
+    def member_type(self):
+        return self._member_type
+
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    @property
     def object_hook(self):
         return self._object_hook
 
@@ -281,14 +303,15 @@ class Option:
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     def __init__(self, long_flag,
-                       short_flags  = (),
-                       long_prefix  = '--',
-                       short_prefix = '-',
-                       flag_type    = COMMON,
-                       members      = (),
-                       member_type  = ANY,
-                       value_type   = SINGLE_VALUE,
-                       description  = ''):
+                       short_flags    = (),
+                       long_prefix    = '--',
+                       short_prefix   = '-',
+                       flag_type      = COMMON,
+                       members        = (),
+                       member_type    = ANY,
+                       value_type     = SINGLE_VALUE,
+                       char_validitor = CHAR_VALIDATOR.__func__,
+                       description    = ''):
         # Check for flag's validity
         short_flags = set(short_flags)
         for flag in chain((long_flag,), short_flags):
@@ -300,12 +323,9 @@ class Option:
             # TODO: check for `/` windows prefix as well
             if flag.startswith('-'):
                 raise Option.InvalidFlagName("Flag name cannot start with '-'")
-            # If character is inappropriate
-            for char in flag:
-                if char not in Option.__VALID:
-                    raise Option.InvalidFlagName(
-                        'Flag name {!r} has an '
-                        'invalid character {!r}'.format(flag, char))
+            # Check every character if it is inappropriate
+            char_validitor(flag)
+
         # Store flags
         self._name  = long_flag
         self._flags = {f for f in chain((long_prefix + long_flag,),
@@ -325,10 +345,47 @@ class Option:
                              "or Option.PAIRS, not {!r}".format(value_type))
         self._object_hook = value_type
 
+        # Check and store member_type
+        if member_type not in Option.__MEMBER_TYPE:
+            raise ValueError("'member_type' has to be Option.ONE or "
+                             "Option.ANY, not {!r}".format(member_type))
+        self._member_type = member_type
 
         # Store static values
-        self._members     = set(members)
+        if isinstance(members, str):
+            self._members = {members}
+        else:
+            self._members     = set(members)
+
         self._description = description
+
+
+
+#------------------------------------------------------------------------------#
+class Command(Option):
+    """Convenient wrapper class around Option"""
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    @staticmethod
+    def ACCEPT_ANYTHING(string):
+        pass
+
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    def __init__(self, long_flag, *args, **kwargs):
+        # Check if command has members
+        if not kwargs.get('members', None):
+            raise ValueError("Missing or empty 'members' for Command")
+        # If otherwise not specified set command as a switch
+        kwargs.setdefault('value_type', Option.STATE_SWITCH)
+        # If otherwise not specified set char_validator to accept file names
+        kwargs.setdefault('char_validitor', Command.ACCEPT_ANYTHING)
+        # Initialize Option
+        super().__init__(long_flag,
+                         *args,
+                         long_prefix='',
+                         flag_type=Option.UNIQUE,
+                         **kwargs)
 
 
 
@@ -337,17 +394,20 @@ class Arguments:
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     # Internal errors
-    class _ContextFound(Exception): pass
-    class _CloseCurrentOption(Exception): pass
+    class _ContextFound(Exception)       : pass
+    class _CloseCurrentOption(Exception) : pass
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     # Public errors
-    class ArgumentsException(Exception): pass
-    class InvalidOptionMember(ArgumentsException): pass
-    class InvalidArgument(ArgumentsException): pass
-    class ArgumentOutOfContext(ArgumentsException): pass
-    class CyclicOptionRelations(ArgumentsException): pass
+    class ArgumentsException(Exception)             : pass
+    class InvalidOptionMember(ArgumentsException)   : pass
+    class InvalidArgument(ArgumentsException)       : pass
+    class ArgumentOutOfContext(ArgumentsException)  : pass
+    class CyclicOptionRelations(ArgumentsException) : pass
+    class DoubleUniqueArgument(ArgumentsException)  : pass
+    class DoublePrimalArgument(ArgumentsException)  : pass
+    class MemberTypeAlreadyUsed(ArgumentsException) : pass
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
@@ -425,6 +485,12 @@ class Arguments:
                 Raised when trying to add value to a non-open option
             Arguments.ArgumentOutOfContext
                 Raised when option is valid but not in the given context
+            Arguments.DoubleUniqueArgument
+                Raised when UNIQUE option is used more than once
+            Arguments.DoublePrimalArgument
+                Raised when PRIMAL option is used more than once in context
+            Arguments.MemberTypeAlreadyUsed
+                Raised when members are limited to be used ONE time only
         """
         flags        = self._flags
         hierarchy    = self._hierarchy
@@ -436,17 +502,28 @@ class Arguments:
         curr_members = None
         open_members = []
         processed    = []
-        #unique_flags = set()
+        curr_ones    = None
+        open_ones    = []
+        unique_flags = set()
+        curr_primals = set()
+        primal_flags = [curr_primals]
 
         #for argument in arguments:
         while True:
-            # If there arguments left unprocessed
+            # If any unprocessed arguments left
             try:
                 # Get next argument
                 argument = next(arguments)
                 # Get option object associated with flag (argument)
                 try:
                     option = flags[argument]
+                    # If option is UNIQUE
+                    if option.flag_type == Option.UNIQUE:
+                        # If unique option already used
+                        if option.name in unique_flags:
+                            raise Arguments.DoubleUniqueArgument(argument) from None
+                        # If not used, mark it as first used
+                        unique_flags.add(option.name)
                 # If no option found
                 except KeyError:
                     # If there is an open option waiting for values
@@ -482,7 +559,10 @@ class Arguments:
                                 contexts.append(sub_context)
                                 # Jump one level down
                                 context = sub_context
-                                # Finished closing
+                                # Create new primal flag context
+                                curr_primals = set()
+                                primal_flags.append(curr_primals)
+                                # Finished searching
                                 raise Arguments._ContextFound
 
                         # If context of option is not found
@@ -491,6 +571,7 @@ class Arguments:
                         try:
                             contexts.pop()
                             context = contexts[-1]
+                            curr_primals = primal_flags.pop()
                         except IndexError:
                             # If this is a regular cycle, not a "close-all-left"
                             if name is not NotImplemented:
@@ -511,7 +592,6 @@ class Arguments:
                             #           fullcmd --this --that abc xyz
                             #                   ~~~~~~        ^^^
                             #       UnfinishedOptionError: this, abc
-                            #
 
                             # Create option-tuple
                             curr = (curr_values.name,
@@ -526,6 +606,8 @@ class Arguments:
                             curr_members.append(curr)
                             open_values.pop()
                             curr_values = open_values[-1]
+                            open_ones.pop()
+                            curr_ones = open_ones[-1]
 
                         # If this is the first argument
                         except AttributeError:
@@ -537,11 +619,37 @@ class Arguments:
 
             # If a new option can be opened
             except Arguments._ContextFound:
+                # If current context limits the number of use of its members
+                try:
+                    # If member has already been used
+                    if len(curr_ones):
+                        raise Arguments.MemberTypeAlreadyUsed(
+                            curr_ones.pop(), argument) from None
+                    # If this is the first time, this member appeared
+                    curr_ones.add(argument)
+                # If current context allows for its
+                # member to appear more than once
+                except TypeError:
+                    pass
+
+                # If option is PRIMAL
+                if option.flag_type == Option.PRIMAL:
+                    # If primal option already used in the current context
+                    if name in curr_primals:
+                        raise Arguments.DoublePrimalArgument(argument) from None
+                    # If not used, mark it as used for the first time
+                    curr_primals.add(name)
+
                 # Open a new option
                 curr_values  = option.object_hook(name)
                 curr_members = []
                 open_values.append(curr_values)
                 open_members.append(curr_members)
+
+                # If this context limits the number of appearences of its
+                # members, use a collections, otherwise a None
+                curr_ones = set() if option.member_type is Option.ONE else None
+                open_ones.append(curr_ones)
 
             # If reached the top-level and the context still did not match
             except IndexError:

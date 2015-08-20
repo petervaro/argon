@@ -27,7 +27,7 @@ On Linux and Macintosh:
 ```
 $ git clone https://github.com/petervaro/argon.git
 $ cd argon
-$ sudo python3 setup.py install
+$ bash setup.sh
 ```
 
 

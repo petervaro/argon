@@ -2,13 +2,14 @@
 ## INFO ##
 
 # Import argin modules
-from argon import Arguments, Option
+from argon import Arguments, Command, Option
 
 
 #------------------------------------------------------------------------------#
 # Pretty printer
 def translate_traverse(arguments, command):
     print('Raw command :', ' '.join(command), sep='\n    ')
+    print('Context hierarchy :', arguments._hierarchy, sep='\n    ')
     processed = arguments.translate_args(command)
     print('Translated  :', processed, sep='\n    ')
 
@@ -48,41 +49,66 @@ def translate_traverse(arguments, command):
 
 
 #------------------------------------------------------------------------------#
-# Build definition
-argdef = Arguments(Option(long_flag   = 'pmt',
-                          long_prefix = '',
-                          flag_type   = Option.UNIQUE,
-                          value_type  = Option.STATE_SWITCH,
-                          members     = ('set', 'add'),
-                          member_type = Option.ONE),
-                   Option(long_flag   = 'set',
-                          long_prefix = '',
-                          flag_type   = Option.UNIQUE,
-                          members     = ('target', 'values')),
-                   Option(long_flag   = 'add',
-                          long_prefix = '',
-                          flag_type   = Option.UNIQUE,
-                          members     = ('target', 'values')),
-                   Option(long_flag   = 'target',
-                          short_flags = 't',
-                          members     = ('milestone', 'label-name')),
-                   Option(long_flag   = 'values',
-                          short_flags = 'v',
-                          value_type  = Option.NAMED_VALUES),
-                   Option(long_flag   = 'milestone',
-                          short_flags = 'm'),
-                   Option(long_flag   = 'label-name',
-                          short_flags = 'L'))
+# Build definitions
+argdef1 = Arguments(Option(long_flag   = 'pmt',
+                           long_prefix = '',
+                           flag_type   = Option.UNIQUE,
+                           value_type  = Option.STATE_SWITCH,
+                           members     = ('set', 'add'),
+                           member_type = Option.ONE),
+                    Option(long_flag   = 'set',
+                           long_prefix = '',
+                           flag_type   = Option.UNIQUE,
+                           members     = ('target', 'values')),
+                    Option(long_flag   = 'add',
+                           long_prefix = '',
+                           flag_type   = Option.UNIQUE,
+                           members     = ('target', 'values')),
+                    Option(long_flag   = 'target',
+                           short_flags = 't',
+                           members     = ('milestone', 'label-name')),
+                    Option(long_flag   = 'values',
+                           short_flags = 'v',
+                           value_type  = Option.NAMED_VALUES,
+                           flag_type   = Option.PRIMAL),
+                    Option(long_flag   = 'milestone',
+                           short_flags = 'm',
+                           flag_type   = Option.PRIMAL),
+                    Option(long_flag   = 'label-name',
+                           short_flags = 'L',
+                           flag_type   = Option.PRIMAL))
+
+argdef2 = Arguments(Option(long_flag   = 'test',
+                           long_prefix = '',
+                           flag_type   = Option.UNIQUE,
+                           value_type  = Option.STATE_SWITCH,
+                           members     = ('ham',),
+                           member_type = Option.ONE),
+                    Option(long_flag   = 'ham',
+                           short_flags = 'hH',
+                           flag_type   = Option.PRIMAL,
+                           value_type  = Option.STATE_SWITCH))
 
 
 #------------------------------------------------------------------------------#
 # Tests
 translate_traverse(
-    argdef,
+    argdef1,
     ('pmt', 'set', 'issues', '-t', 'milestones',
                                          '-m', 'open',
+                                         #'-m', 'closed',
                                    '-t', 'issues',
                                          '-L', 'MyOtherLabel',
                                    '-v',
                                          'status', 'closed',
-                                         'labels', 'MyLabel',))
+                                         'labels', 'MyLabel',
+            'add', 'milestones'
+    ))
+
+print('\n' + '-'*80)
+try:
+    translate_traverse(
+        argdef2,
+        ('test', '--ham', '-H'))
+except Arguments.DoublePrimalArgument:
+    print('[PASS]')
