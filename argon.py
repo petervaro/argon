@@ -2,9 +2,12 @@
 ## INFO ##
 
 # Import python modules
+from textwrap     import fill
 from itertools    import chain
+from os           import isatty
 from sys          import stdout
 from collections  import OrderedDict
+from shutil       import get_terminal_size
 from string       import ascii_letters, digits
 
 # Import orderedset modules
@@ -17,10 +20,165 @@ from dagger.tools import topo_sort, a_star, DAGCycleError
 
 
 #------------------------------------------------------------------------------#
+class Text:
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    class Section:
+
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+        def __init__(self, *blocks,
+                           indent=0):
+            self._blocks = blocks
+            self._indent = indent
+
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+        def write(self, indent,
+                        stream,
+                        width,
+                        spaces,
+                        no_color,
+                        options,
+                        option=None):
+            indent += self._indent
+            for block in self._blocks:
+                # Check block
+                if isinstance(block, str):
+                    option = options[block]
+                    block  = option.description
+                elif isinstance(block, Option):
+                    option = block
+                    block  = option.description
+
+                if isinstance(block, Text.Block):
+                    # Write block to stream
+                    block.write(indent   = indent,
+                                stream   = stream,
+                                option   = option,
+                                width    = width,
+                                spaces   = spaces,
+                                no_color = no_color)
+                elif isinstance(block, Text.Section):
+                    # Write block to stream
+                    block.write(indent   = indent,
+                                stream   = stream,
+                                option   = option,
+                                options  = options,
+                                width    = width,
+                                spaces   = spaces,
+                                no_color = no_color)
+                else:
+                    raise ValueError('Text.Section expected Option or name of '
+                                     'Option (as str) or Text.Block object, '
+                                     'got {.__class__.__name__!r}'.format(block))
+
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    class Block:
+
+        INDENT = 0
+
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+        def __init__(self, text   = '',
+                           indent = None):
+            self._text   = (text,)
+            self._indent = self.INDENT if indent is None else indent
+
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+        def write(self, indent,
+                        stream,
+                        width,
+                        spaces,
+                        no_color,
+                        ending='\n',
+                        strong=False,
+                        *args,
+                        **kwargs):
+            # Indent and wrap text
+            indent = (indent + self._indent)*spaces
+            text = []
+            for paragraph in self._text:
+                text.append(fill(paragraph, width, initial_indent    = indent,
+                                                   subsequent_indent = indent))
+            text = '\n'.join(text)
+
+            # Colorize text if instructed
+            # and colors are available
+            try:
+                if (not no_color and
+                    strong and
+                    isatty(stream.fileno())):
+                        text = '\033[1m{}\033[0m'.format(text)
+            except AttributeError:
+                pass
+
+            # Write content to stream
+            print(text, file=stream, end=ending)
+
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    class Header(Block):
+
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+        def write(self, *args, **kwargs):
+            super().write(*args, strong=True, **kwargs)
+
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    class Paragraph(Block):
+
+        INDENT = 1
+
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+        def write(self, *args, **kwargs):
+            super().write(*args, ending='\n\n', **kwargs)
+
+
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    class Span(Block):
+
+        INDENT = 1
+
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    class Flags(Block):
+
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+        def __init__(self, new_line=False,
+                           *args,
+                           **kwargs):
+            self._new_line = new_line
+            super().__init__(*args, **kwargs)
+
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+        def write(self, option,
+                        *args,
+                        **kwargs):
+            values = self._text[0]
+            text   = []
+            # Construct flags
+            for flag in reversed(sorted(option.flags)):
+                text.append(flag + ((' ' + values) if values else ''))
+            # TODO: ** Clean this mess up **
+            #       Make it simple and beautiful
+            if self._new_line:
+                self._text = [f + ',' for f in text[:-1]]
+                self._text.append(text[-1])
+            else:
+                self._text = (', '.join(text),)
+
+            # Write content to stream
+            super().write(*args, strong=True, **kwargs)
+
+
+
+#------------------------------------------------------------------------------#
 class Option:
     """
     By default valid characters for flags are:
+
         abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-
+
     But this can be overwritten, by passing a `char_validator` function to the
     Option object during the initialization.
 
@@ -311,7 +469,7 @@ class Option:
                        member_type    = ANY,
                        value_type     = SINGLE_VALUE,
                        char_validitor = CHAR_VALIDATOR.__func__,
-                       description    = ''):
+                       description    = Text.Section()):
         # Check for flag's validity
         short_flags = set(short_flags)
         for flag in chain((long_flag,), short_flags):
@@ -351,13 +509,17 @@ class Option:
                              "Option.ANY, not {!r}".format(member_type))
         self._member_type = member_type
 
+        # Check and store description
+        if not isinstance(description, Text.Section):
+            raise TypeError("'description' expected Text.Section, "
+                            "got {.__class__.__name__!r}".format(description))
+        self._description = description
+
         # Store static values
         if isinstance(members, str):
             self._members = {members}
         else:
             self._members     = set(members)
-
-        self._description = description
 
 
 
@@ -430,8 +592,8 @@ class Arguments:
         rgraph = Graph()
 
         # Create a flat map, a flag map and a graph from options
-        options = {}
-        self._flags = flags = {}
+        self._flags   = flags   = {}
+        self._options = options = {}
         for option in option_objects:
             options[option.name] = option
             fgraph.add_vertex(option.name)
@@ -585,7 +747,8 @@ class Arguments:
                     except Arguments._CloseCurrentOption as message:
                         # If this is the nth argument
                         try:
-                            # TODO: At some point add better feedback to object
+                            # TODO: ** Meaningful error strings **
+                            #       At some point add better feedback to object
                             #       hook when closing, to produce error like
                             #       this:
                             #
@@ -659,7 +822,6 @@ class Arguments:
                          processed)]
 
 
-
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     @staticmethod
     def branch_traverse(options):
@@ -696,7 +858,7 @@ class Arguments:
         Unlike the self.translate_args() method, it returns a yuple of four
         values:
 
-            (<group>, <long_flag>, <value>, [<members>])
+            (<group>, <long_flag>, <value>, [<members>...])
         """
         options = [(None, options)]
         for group, gmembers in options:
@@ -706,5 +868,31 @@ class Arguments:
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-    def write_help(self, file=stdout):
-        pass
+    def write_help(self, *blocks,
+                         file     = stdout,
+                         width    = None,
+                         tab_size = 4,
+                         no_color = False):
+        options = self._options
+        width   = width or get_terminal_size().columns
+        spaces  = abs(int(tab_size))*' '
+        # Write all blocks to file
+        for block in blocks:
+            if isinstance(block, str):
+                try:
+                    block = options[block].description
+                except KeyError:
+                    raise ValueError('Option not in Arguments: {!r}'.format(option))
+            elif isinstance(block, Option):
+                block = block.description
+            # If block is not a Text.Block object
+            elif not isinstance(block, Text.Section):
+                raise ValueError('Expected Text.Section, got '
+                                 '{0!r}({0.__class__.__name__!r})'.format(block))
+            # If it is a Text.Block object
+            block.write(indent   = 0,
+                        stream   = file,
+                        width    = width,
+                        spaces   = spaces,
+                        no_color = no_color,
+                        options  = options)

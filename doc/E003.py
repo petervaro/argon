@@ -1,7 +1,7 @@
 """
 Example 003
-Command with only one special boolean flags,
-with proper error handling
+Command with limited unique boolean flags,
+with proper error handling,
 and string-based declaration.
 """
 # Import python modules
@@ -12,16 +12,23 @@ from sys   import argv, exit
 from argon import Arguments, Command, Option
 
 # Argument-definition
-definition = Arguments(Command(__file__, members=('this', 'that', 'these', 'those'),
-                                         member_type=Option.ONE),
-                       Option('this'   , value_type = Option.STATE_SWITCH,
-                                         flag_type  = Option.UNIQUE),
-                       Option('that'   , value_type = Option.STATE_SWITCH,
-                                         flag_type  = Option.UNIQUE),
-                       Option('these'  , value_type = Option.STATE_SWITCH,
-                                         flag_type  = Option.UNIQUE),
-                       Option('those'  , value_type = Option.STATE_SWITCH,
-                                         flag_type  = Option.UNIQUE))
+definition = Arguments(Command(__file__, members     = ('this',
+                                                        'that',
+                                                        'these',
+                                                        'those'),
+                                         member_type = Option.ONE),
+
+                       Option('this'   , value_type  = Option.STATE_SWITCH,
+                                         flag_type   = Option.UNIQUE),
+
+                       Option('that'   , value_type  = Option.STATE_SWITCH,
+                                         flag_type   = Option.UNIQUE),
+
+                       Option('these'  , value_type  = Option.STATE_SWITCH,
+                                         flag_type   = Option.UNIQUE),
+
+                       Option('those'  , value_type  = Option.STATE_SWITCH,
+                                         flag_type   = Option.UNIQUE))
 
 # Process input from user
 try:

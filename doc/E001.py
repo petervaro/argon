@@ -1,6 +1,6 @@
 """
 Example 001
-Command with any simple boolean flags.
+Command with simple boolean flags.
 """
 
 # Import python modules

@@ -1,6 +1,6 @@
 """
 Example 002
-Command with only one special boolean flags.
+Command with limited unique boolean flags.
 """
 # Import python modules
 from sys import argv

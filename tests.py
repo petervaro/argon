@@ -8,6 +8,8 @@ from argon import Arguments, Command, Option
 #------------------------------------------------------------------------------#
 # Pretty printer
 def translate_traverse(arguments, command):
+    print()
+    print('-'*80)
     print('Raw command :', ' '.join(command), sep='\n    ')
     print('Context hierarchy :', arguments._hierarchy, sep='\n    ')
     processed = arguments.translate_args(command)
@@ -46,48 +48,51 @@ def translate_traverse(arguments, command):
     # Get flags
     for (_, *path), value in traverse:
         print('.'.join(path), '=', value)
+    print()
 
 
 #------------------------------------------------------------------------------#
 # Build definitions
-argdef1 = Arguments(Option(long_flag   = 'pmt',
-                           long_prefix = '',
-                           flag_type   = Option.UNIQUE,
-                           value_type  = Option.STATE_SWITCH,
-                           members     = ('set', 'add'),
-                           member_type = Option.ONE),
-                    Option(long_flag   = 'set',
-                           long_prefix = '',
-                           flag_type   = Option.UNIQUE,
-                           members     = ('target', 'values')),
-                    Option(long_flag   = 'add',
-                           long_prefix = '',
-                           flag_type   = Option.UNIQUE,
-                           members     = ('target', 'values')),
-                    Option(long_flag   = 'target',
-                           short_flags = 't',
-                           members     = ('milestone', 'label-name')),
-                    Option(long_flag   = 'values',
-                           short_flags = 'v',
-                           value_type  = Option.NAMED_VALUES,
-                           flag_type   = Option.PRIMAL),
-                    Option(long_flag   = 'milestone',
-                           short_flags = 'm',
-                           flag_type   = Option.PRIMAL),
-                    Option(long_flag   = 'label-name',
-                           short_flags = 'L',
-                           flag_type   = Option.PRIMAL))
+argdef1 = Arguments(Command('pmt',
+                            members     = ('set', 'add'),
+                            member_type = Option.ONE),
 
-argdef2 = Arguments(Option(long_flag   = 'test',
-                           long_prefix = '',
-                           flag_type   = Option.UNIQUE,
-                           value_type  = Option.STATE_SWITCH,
-                           members     = ('ham',),
-                           member_type = Option.ONE),
-                    Option(long_flag   = 'ham',
-                           short_flags = 'hH',
-                           flag_type   = Option.PRIMAL,
-                           value_type  = Option.STATE_SWITCH))
+                    Option(long_flag    = 'set',
+                           long_prefix  = '',
+                           flag_type    = Option.UNIQUE,
+                           members      = ('target', 'values')),
+
+                    Option(long_flag    = 'add',
+                           long_prefix  = '',
+                           flag_type    = Option.UNIQUE,
+                           members      = ('target', 'values')),
+
+                    Option(long_flag    = 'target',
+                           short_flags  = 't',
+                           members      = ('milestone', 'label-name')),
+
+                    Option(long_flag    = 'values',
+                           short_flags  = 'v',
+                           value_type   = Option.NAMED_VALUES,
+                           flag_type    = Option.PRIMAL),
+
+                    Option(long_flag    = 'milestone',
+                           short_flags  = 'm',
+                           flag_type    = Option.PRIMAL),
+
+                    Option(long_flag    = 'label-name',
+                           short_flags  = 'L',
+                           flag_type    = Option.PRIMAL))
+
+
+argdef2 = Arguments(Command('test',
+                            members     = ('ham',),
+                            member_type = Option.ONE),
+
+                    Option(long_flag    = 'ham',
+                           short_flags  = 'hH',
+                           flag_type    = Option.PRIMAL,
+                           value_type   = Option.STATE_SWITCH))
 
 
 #------------------------------------------------------------------------------#
@@ -101,14 +106,11 @@ translate_traverse(
                                          '-L', 'MyOtherLabel',
                                    '-v',
                                          'status', 'closed',
-                                         'labels', 'MyLabel',
-            'add', 'milestones'
-    ))
+                                         'labels', 'MyLabel',))
 
-print('\n' + '-'*80)
 try:
     translate_traverse(
         argdef2,
         ('test', '--ham', '-H'))
-except Arguments.DoublePrimalArgument:
+except Arguments.MemberTypeAlreadyUsed:
     print('[PASS]')
