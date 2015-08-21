@@ -23,64 +23,23 @@ from dagger.tools import topo_sort, a_star, DAGCycleError
 class Text:
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-    class Section:
-
-        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-        def __init__(self, *blocks,
-                           indent=0):
-            self._blocks = blocks
-            self._indent = indent
-
-        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-        def write(self, indent,
-                        stream,
-                        width,
-                        spaces,
-                        no_color,
-                        options,
-                        option=None):
-            indent += self._indent
-            for block in self._blocks:
-                # Check block
-                if isinstance(block, str):
-                    option = options[block]
-                    block  = option.description
-                elif isinstance(block, Option):
-                    option = block
-                    block  = option.description
-
-                if isinstance(block, Text.Block):
-                    # Write block to stream
-                    block.write(indent   = indent,
-                                stream   = stream,
-                                option   = option,
-                                width    = width,
-                                spaces   = spaces,
-                                no_color = no_color)
-                elif isinstance(block, Text.Section):
-                    # Write block to stream
-                    block.write(indent   = indent,
-                                stream   = stream,
-                                option   = option,
-                                options  = options,
-                                width    = width,
-                                spaces   = spaces,
-                                no_color = no_color)
-                else:
-                    raise ValueError('Text.Section expected Option or name of '
-                                     'Option (as str) or Text.Block object, '
-                                     'got {.__class__.__name__!r}'.format(block))
-
-
-    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     class Block:
 
         INDENT = 0
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-        def __init__(self, text   = '',
+        @property
+        def owner(self):
+            return self._owner
+
+        @owner.setter
+        def owner(self, owner):
+            self._owner = owner
+
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+        def __init__(self, *blocks,
                            indent = None):
-            self._text   = (text,)
+            self._blocks = blocks
             self._indent = self.INDENT if indent is None else indent
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
@@ -88,15 +47,15 @@ class Text:
                         stream,
                         width,
                         spaces,
-                        no_color,
-                        ending='\n',
-                        strong=False,
-                        *args,
-                        **kwargs):
+                        ending   = '\n',
+                        owner    = None,
+                        options  = {},
+                        no_color = False,
+                        strong   = False):
             # Indent and wrap text
             indent = (indent + self._indent)*spaces
             text = []
-            for paragraph in self._text:
+            for paragraph in self._blocks:
                 text.append(fill(paragraph, width, initial_indent    = indent,
                                                    subsequent_indent = indent))
             text = '\n'.join(text)
@@ -113,6 +72,41 @@ class Text:
 
             # Write content to stream
             print(text, file=stream, end=ending)
+
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    class Section(Block):
+
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+        def write(self, *args, **kwargs):
+            if kwargs['owner'] is None:
+                try:
+                    kwargs['owner'] = self._owner
+                except AttributeError:
+                    pass
+
+            kwargs['indent'] += self._indent
+
+            for block in self._blocks:
+                # If block is a string reference to an Option
+                if isinstance(block, str):
+                    try:
+                        block = kwargs['options'][block].description
+                    except KeyError:
+                        raise ValueError('Option not in Arguments: '
+                                         '{!r}'.format(block)) from None
+
+                # If block is an Option object
+                elif isinstance(block, Option):
+                    block = block.description
+
+                # If block is something unexpected
+                if not isinstance(block, Text.Block):
+                    raise ValueError('Text.Section expected Option or name of '
+                                     'Option (as str) or Text.Block object, '
+                                     'got {.__class__.__qualname__!r}'.format(block))
+                # Write block
+                block.write(*args, **kwargs)
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
@@ -144,31 +138,37 @@ class Text:
     class Flags(Block):
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-        def __init__(self, new_line=False,
-                           *args,
+        def __init__(self, *args,
+                           new_line=False,
                            **kwargs):
             self._new_line = new_line
             super().__init__(*args, **kwargs)
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-        def write(self, option,
-                        *args,
-                        **kwargs):
-            values = self._text[0]
+        def write(self, *args, **kwargs):
+            values = ' '.join(self._blocks)
             text   = []
+            blocks = self._blocks
             # Construct flags
-            for flag in reversed(sorted(option.flags)):
-                text.append(flag + ((' ' + values) if values else ''))
+            try:
+                for flag in reversed(sorted(kwargs['owner'].flags)):
+                    text.append(flag + ((' ' + values) if values else ''))
+            except AttributeError:
+                raise ValueError('Text.Flag should be used inside a '
+                                 'Text.Section, which will be passed to an '
+                                 'Option, before the writing is '
+                                 'happening') from None
             # TODO: ** Clean this mess up **
             #       Make it simple and beautiful
             if self._new_line:
-                self._text = [f + ',' for f in text[:-1]]
-                self._text.append(text[-1])
+                self._blocks = [f + ',' for f in text[:-1]]
+                self._blocks.append(text[-1])
             else:
-                self._text = (', '.join(text),)
+                self._blocks = (', '.join(text),)
 
             # Write content to stream
             super().write(*args, strong=True, **kwargs)
+            self._blocks = blocks
 
 
 
@@ -469,13 +469,13 @@ class Option:
                        member_type    = ANY,
                        value_type     = SINGLE_VALUE,
                        char_validitor = CHAR_VALIDATOR.__func__,
-                       description    = Text.Section()):
+                       description    = ''):
         # Check for flag's validity
         short_flags = set(short_flags)
         for flag in chain((long_flag,), short_flags):
             if not isinstance(flag, str):
                 raise Option.InvalidFlagName(
-                    "Flag's type should be 'str', not {0.__class__.__name__!r} "
+                    "Flag's type should be 'str', not {0.__class__.__qualname__!r} "
                     "for flag {0!r}".format(flag))
             # If the user accidentally added the `-` or `--` prefixes
             # TODO: check for `/` windows prefix as well
@@ -498,9 +498,10 @@ class Option:
 
         # Check and store value_type
         if value_type not in Option.__VALUE_TYPE:
-            raise ValueError("'value_type' has to be Option.STATE "
-                             "or Option.VALUE or Option.ARRAY "
-                             "or Option.PAIRS, not {!r}".format(value_type))
+            raise ValueError("'value_type' has to be Option.STATE_SWITCH "
+                             "or Option.SINGLE_VALUE or Option.COMMON_ARRAY "
+                             "or Option.UNIQUE_ARRAY or Option.NAMED_VALUES, "
+                             "not {!r}".format(value_type))
         self._object_hook = value_type
 
         # Check and store member_type
@@ -510,16 +511,25 @@ class Option:
         self._member_type = member_type
 
         # Check and store description
-        if not isinstance(description, Text.Section):
-            raise TypeError("'description' expected Text.Section, "
-                            "got {.__class__.__name__!r}".format(description))
+        if isinstance(description, str):
+            description = Text.Section(
+                Text.Flags({Option.STATE_SWITCH: '',
+                            Option.SINGLE_VALUE: '<value>',
+                            Option.COMMON_ARRAY: '<value>...',
+                            Option.UNIQUE_ARRAY: '<value>...',
+                            Option.NAMED_VALUES: '<key> <value>...'}[value_type]),
+                Text.Paragraph(description))
+        elif not isinstance(description, Text.Section):
+            raise TypeError("'description' expected str or Text.Section, "
+                            "got {.__class__.__qualname__!r}".format(description))
+        description.owner = self
         self._description = description
 
         # Store static values
         if isinstance(members, str):
             self._members = {members}
         else:
-            self._members     = set(members)
+            self._members = set(members)
 
 
 
@@ -542,6 +552,15 @@ class Command(Option):
         kwargs.setdefault('value_type', Option.STATE_SWITCH)
         # If otherwise not specified set char_validator to accept file names
         kwargs.setdefault('char_validitor', Command.ACCEPT_ANYTHING)
+
+        # Create basic documentation
+        description = kwargs.get('description', '')
+        if isinstance(description, str):
+            kwargs['description'] = Text.Section(
+                Text.Header('NAME'),
+                Text.Paragraph(long_flag +
+                               ((' - ' + description) if description else '')))
+
         # Initialize Option
         super().__init__(long_flag,
                          *args,
@@ -873,26 +892,11 @@ class Arguments:
                          width    = None,
                          tab_size = 4,
                          no_color = False):
-        options = self._options
-        width   = width or get_terminal_size().columns
-        spaces  = abs(int(tab_size))*' '
         # Write all blocks to file
-        for block in blocks:
-            if isinstance(block, str):
-                try:
-                    block = options[block].description
-                except KeyError:
-                    raise ValueError('Option not in Arguments: {!r}'.format(option))
-            elif isinstance(block, Option):
-                block = block.description
-            # If block is not a Text.Block object
-            elif not isinstance(block, Text.Section):
-                raise ValueError('Expected Text.Section, got '
-                                 '{0!r}({0.__class__.__name__!r})'.format(block))
-            # If it is a Text.Block object
-            block.write(indent   = 0,
-                        stream   = file,
-                        width    = width,
-                        spaces   = spaces,
-                        no_color = no_color,
-                        options  = options)
+        Text.Section(*blocks).write(indent   = 0,
+                                    stream   = file,
+                                    width    = width or get_terminal_size().columns,
+                                    spaces   = abs(int(tab_size))*' ',
+                                    no_color = no_color,
+                                    owner    = None,
+                                    options  = self._options)

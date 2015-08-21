@@ -94,4 +94,8 @@ except StopIteration:
                     'that',
                     'these',
                     'those',
-                    'help', indent=1))))
+                    'help', indent=1),
+                Text.Header('AUTHOR'),
+                Text.Section(
+                    Text.Header('Peter Varo'),
+                    Text.Paragraph('<petervaro@sketchandprototype.com>'), indent=1))))
