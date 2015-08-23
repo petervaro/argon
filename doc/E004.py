@@ -1,6 +1,6 @@
 """
 Example 004
-Command with limited unique boolean flags,
+Program with limited unique boolean flags,
 with proper error handling,
 string-based declaration,
 and help text.
@@ -10,61 +10,61 @@ from errno import EINVAL
 from sys   import argv, exit
 
 # Import argon modules
-from argon import Arguments, Command, Option, Text
+from argon import *
 
-# Argument-definition
-definition = Arguments(
-    Command(__file__,
+# Scheme object
+scheme = Scheme(
+    Program(__file__,
             members=('this', 'that', 'these', 'those', 'help'),
-            member_type=Option.ONE,
-            description=Text.Section(
-                Text.Section(
-                    Text.Header('NAME'),
-                    Text.Paragraph(__file__ + ' - Testing `argon`.')),
-                Text.Section(
-                    Text.Header('SYNOPSIS'),
-                    Text.Paragraph(__file__ + ' [OPTIONS]')),
-                Text.Section(
-                    Text.Header('DESCRIPTION'),
-                    Text.Paragraph('This is a test script, to find out how the '
+            member_type=Pattern.ONE,
+            description=Section(
+                Section(
+                    Header('NAME'),
+                    Paragraph(__file__ + ' - Testing `argon`.')),
+                Section(
+                    Header('SYNOPSIS'),
+                    Paragraph(__file__ + ' [OPTIONS]')),
+                Section(
+                    Header('DESCRIPTION'),
+                    Paragraph('This is a test script, to find out how the '
                                    'help-text construction and generation is '
                                    'working in `argon`.')))),
-    Option('this',
-           value_type  = Option.STATE_SWITCH,
-           flag_type   = Option.UNIQUE,
-           description = Text.Section(
-               Text.Flags(),
-               Text.Paragraph('Optional value: set `this`.'))),
-    Option('that',
-           value_type = Option.STATE_SWITCH,
-           flag_type  = Option.UNIQUE,
-           description = Text.Section(
-               Text.Flags(),
-               Text.Paragraph('Optional value: set `that`.'))),
-    Option('these',
-           value_type = Option.STATE_SWITCH,
-           flag_type  = Option.UNIQUE,
-           description = Text.Section(
-               Text.Flags(),
-               Text.Paragraph('Optional value: set `these`.'))),
-    Option('those',
-           value_type = Option.STATE_SWITCH,
-           flag_type  = Option.UNIQUE,
-           description = Text.Section(
-               Text.Flags(),
-               Text.Paragraph('Optional value: set `those`.'))),
-    Option('help',
-           short_flags = 'hH',
-           value_type  = Option.STATE_SWITCH,
-           flag_type   = Option.UNIQUE,
-           description = Text.Section(
-               Text.Flags(),
-               Text.Paragraph('Print this text.'))))
+    Pattern('this',
+            value_type  = Pattern.STATE_SWITCH,
+            flag_type   = Pattern.UNIQUE,
+            description = Section(
+                Flags(),
+                Paragraph('Optional value: sets `this`.'))),
+    Pattern('that',
+            value_type = Pattern.STATE_SWITCH,
+            flag_type  = Pattern.UNIQUE,
+            description = Section(
+                Flags(),
+                Paragraph('Optional value: sets `that`.'))),
+    Pattern('these',
+            value_type = Pattern.STATE_SWITCH,
+            flag_type  = Pattern.UNIQUE,
+            description = Section(
+                Flags(),
+                Paragraph('Optional value: sets `these`.'))),
+    Pattern('those',
+            value_type = Pattern.STATE_SWITCH,
+            flag_type  = Pattern.UNIQUE,
+            description = Section(
+                Flags(),
+                Paragraph('Optional value: sets `those`.'))),
+    Pattern('help',
+            short_flags = 'hH',
+            value_type  = Pattern.STATE_SWITCH,
+            flag_type   = Pattern.UNIQUE,
+            description = Section(
+                Flags(),
+                Paragraph('Print this text.'))))
 
 # Process input from user
 try:
-    processed = definition.translate_args(argv)
-except Option.FinishedOption as e:
+    processed = scheme.parse_iter(argv)
+except Pattern.FinishedPattern as e:
     flag, value = e.args
     if flag == __file__:
         print('Invalid flag for {!r}: {!r}'.format(flag, value))
@@ -75,7 +75,7 @@ except Option.FinishedOption as e:
     exit(EINVAL)
 
 # Print what we have
-traverse = Arguments.branch_traverse(processed)
+traverse = Scheme.branch_traverse(processed)
 next(traverse)
 try:
     flag, value = next(traverse)
@@ -84,18 +84,18 @@ try:
     else:
         print(flag, '=>', value)
 except StopIteration:
-    definition.write_help(
-        Text.Section(
+    scheme.write_help(
+        Section(
             __file__,
-            Text.Section(
-                Text.Header('OPTIONS'),
-                Text.Section(
+            Section(
+                Header('OPTIONS'),
+                Section(
                     'this',
                     'that',
                     'these',
                     'those',
                     'help', indent=1),
-                Text.Header('AUTHOR'),
-                Text.Section(
-                    Text.Header('Peter Varo'),
-                    Text.Paragraph('<petervaro@sketchandprototype.com>'), indent=1))))
+                Header('AUTHOR'),
+                Section(
+                    Header('Peter Varo'),
+                    Paragraph('<petervaro@sketchandprototype.com>'), indent=1))))

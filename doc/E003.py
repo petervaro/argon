@@ -9,31 +9,31 @@ from errno import EINVAL
 from sys   import argv, exit
 
 # Import argon modules
-from argon import Arguments, Command, Option
+from argon import *
 
-# Argument-definition
-definition = Arguments(Command(__file__, members     = ('this',
-                                                        'that',
-                                                        'these',
-                                                        'those'),
-                                         member_type = Option.ONE),
+# Scheme object
+scheme = Scheme(Program(__file__, members     = ('this',
+                                                 'that',
+                                                 'these',
+                                                 'those'),
+                                  member_type = Pattern.ONE),
 
-                       Option('this'   , value_type  = Option.STATE_SWITCH,
-                                         flag_type   = Option.UNIQUE),
+                Pattern('this'  , value_type  = Pattern.STATE_SWITCH,
+                                  flag_type   = Pattern.UNIQUE),
 
-                       Option('that'   , value_type  = Option.STATE_SWITCH,
-                                         flag_type   = Option.UNIQUE),
+                Pattern('that'  , value_type  = Pattern.STATE_SWITCH,
+                                  flag_type   = Pattern.UNIQUE),
 
-                       Option('these'  , value_type  = Option.STATE_SWITCH,
-                                         flag_type   = Option.UNIQUE),
+                Pattern('these' , value_type  = Pattern.STATE_SWITCH,
+                                  flag_type   = Pattern.UNIQUE),
 
-                       Option('those'  , value_type  = Option.STATE_SWITCH,
-                                         flag_type   = Option.UNIQUE))
+                Pattern('those' , value_type  = Pattern.STATE_SWITCH,
+                                  flag_type   = Pattern.UNIQUE))
 
 # Process input from user
 try:
-    processed = definition.translate_args(argv)
-except Option.FinishedOption as e:
+    processed = scheme.parse_iter(argv)
+except Pattern.FinishedPattern as e:
     flag, value = e.args
     if flag == __file__:
         print('Invalid flag for {!r}: {!r}'.format(flag, value))
@@ -44,5 +44,5 @@ except Option.FinishedOption as e:
     exit(EINVAL)
 
 # Print what we have
-for flag, value in Arguments.branch_traverse(processed):
+for flag, value in Scheme.branch_traverse(processed):
     print(flag, '=>', value)

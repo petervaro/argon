@@ -22,7 +22,7 @@ cmd = Program(__file__, members=(this, that, these, those))
 scheme = Scheme(cmd, *cmd.members)
 
 # Process input from user
-processed = scheme.translate_args(argv)
+processed = scheme.parse_iter(argv)
 # Print what we have
 for flag, value in Scheme.branch_traverse(processed):
     print(flag, '=>', value)

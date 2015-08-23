@@ -6,28 +6,28 @@ Command with limited unique boolean flags.
 from sys import argv
 
 # Import argon modules
-from argon import Arguments, Command, Option
+from argon import *
 
 # Possible boolean flags
-this  = Option('this' , value_type = Option.STATE_SWITCH,
-                        flag_type  = Option.UNIQUE)
-that  = Option('that' , value_type = Option.STATE_SWITCH,
-                        flag_type  = Option.UNIQUE)
-these = Option('these', value_type = Option.STATE_SWITCH,
-                        flag_type  = Option.UNIQUE)
-those = Option('those', value_type = Option.STATE_SWITCH,
-                        flag_type  = Option.UNIQUE)
+this  = Pattern('this' , value_type = Pattern.STATE_SWITCH,
+                         flag_type  = Pattern.UNIQUE)
+that  = Pattern('that' , value_type = Pattern.STATE_SWITCH,
+                         flag_type  = Pattern.UNIQUE)
+these = Pattern('these', value_type = Pattern.STATE_SWITCH,
+                         flag_type  = Pattern.UNIQUE)
+those = Pattern('those', value_type = Pattern.STATE_SWITCH,
+                         flag_type  = Pattern.UNIQUE)
 
 # Command object
-cmd = Command(__file__,
+cmd = Program(__file__,
               members=(this, that, these, those),
-              member_type=Option.ONE)
+              member_type=Pattern.ONE)
 
-# Argument-definition
-definition = Arguments(cmd, *cmd.members)
+# Scheme object
+scheme = Scheme(cmd, *cmd.members)
 
 # Process input from user
-processed = definition.translate_args(argv)
+processed = scheme.parse_iter(argv)
 # Print what we have
-for flag, value in Arguments.branch_traverse(processed):
+for flag, value in Scheme.branch_traverse(processed):
     print(flag, '=>', value)
