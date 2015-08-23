@@ -7,22 +7,22 @@ Command with simple boolean flags.
 from sys import argv
 
 # Import argon modules
-from argon import Arguments, Command, Option
+from argon import *
 
 # Possible boolean flags
-this  = Option('this' , value_type=Option.STATE_SWITCH)
-that  = Option('that' , value_type=Option.STATE_SWITCH)
-these = Option('these', value_type=Option.STATE_SWITCH)
-those = Option('those', value_type=Option.STATE_SWITCH)
+this  = Pattern('this' , value_type=Pattern.STATE_SWITCH)
+that  = Pattern('that' , value_type=Pattern.STATE_SWITCH)
+these = Pattern('these', value_type=Pattern.STATE_SWITCH)
+those = Pattern('those', value_type=Pattern.STATE_SWITCH)
 
-# Command object
-cmd = Command(__file__, members=(this, that, these, those))
+# Program object
+cmd = Program(__file__, members=(this, that, these, those))
 
-# Argument-definition
-definition = Arguments(cmd, *cmd.members)
+# Scheme object
+scheme = Scheme(cmd, *cmd.members)
 
 # Process input from user
-processed = definition.translate_args(argv)
+processed = scheme.translate_args(argv)
 # Print what we have
-for flag, value in Arguments.branch_traverse(processed):
+for flag, value in Scheme.branch_traverse(processed):
     print(flag, '=>', value)

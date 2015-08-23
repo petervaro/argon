@@ -6,9 +6,9 @@
 from distutils.core import setup
 
 setup(name         = 'argon',
-      version      = '0.1.0',
+      version      = '0.2.1',
       description  = 'Powerful and Flexible Argument Handler',
       author       = 'Peter Varo',
       author_email = 'petervaro@sketchandprototype.com',
       url          = 'https://github.com/petervaro/argon',
-      py_modules   = ['argon'])
+      packages     = ['argon'])
