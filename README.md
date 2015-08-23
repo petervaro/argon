@@ -6,10 +6,17 @@ argon
 Description
 -----------
 
-`argon` is a powerful and super flexible CLI argument parser. It is capable of
-handling unique flags, more than one flags from the smae type, arrays with
-unique or common elements, key-value pairs, opening groups, etc. It has an easy
-decalarative build style, a traverse function and a help-text printer.
+`argon` is a powerful and super flexible CLI argument parser. It can almost
+handle any type of interface schemas. Some of its characteristics:
+
+- it can handle boolean flags, flags with single values, flags with value arrays
+  (values both repeated or unique) and flags with named values (key-value pairs)
+- it can handle nested flags (contexts)
+- it has an easy to use, very dynamic and lasy declarative style
+- it has a unified parsed return value, but also provides several traverse
+  functions for easier argument/value checking
+- it has a tiny, but powerful text-templating system to build help texts
+- almost everything is customizable about it
 
 
 Dependencies
@@ -19,7 +26,8 @@ Dependencies
 - [orderedset](https://github.com/petervaro/orderedset)
 
 > ***NOTE:*** If you have `bash` and `git` installed on your system, you can run
-> `install.sh` and it will download the dependencies for you.
+> `install.sh` and it will download the dependencies for you, and install argon
+> as well.
 
 
 Installation

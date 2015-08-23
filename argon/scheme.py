@@ -2,13 +2,13 @@
 ## INFO ##
 
 # Import python modules
-from sys          import stdout
-from shutil       import get_terminal_size
-from re           import compile, split
+from sys           import stdout, stderr
+from re            import compile, split
+from shutil        import get_terminal_size
 
 # Import dagger modules
-from dagger.graph import Graph
-from dagger.tools import topo_sort, a_star, DAGCycleError
+from dagger.graph  import Graph
+from dagger.tools  import topo_sort, a_star, DAGCycleError
 
 # Import argon modules
 from argon.text    import Section
@@ -220,18 +220,9 @@ class Scheme:
                     except Scheme._CloseCurrentPattern as message:
                         # If this is the nth argument
                         try:
-                            # TODO: ** Meaningful error strings **
-                            #       At some point add better feedback to object
-                            #       hook when closing, to produce error like
-                            #       this:
-                            #
-                            #           fullcmd --this --that abc xyz
-                            #                   ~~~~~~        ^^^
-                            #       UnfinishedPatternError: this, abc
-
                             # Create pattern-tuple
                             curr = (curr_values.name,
-                                    curr_values.close(name),
+                                    curr_values.close(name, argument),
                                     open_members.pop())
 
                             # Store last members as a processed value
@@ -277,7 +268,8 @@ class Scheme:
                     curr_primals.add(name)
 
                 # Open a new pattern
-                curr_values  = pattern.object_hook(name, pattern.value_necessity)
+                curr_values  = \
+                    pattern.object_hook(name, argument, pattern.value_necessity)
                 curr_members = []
                 open_values.append(curr_values)
                 open_members.append(curr_members)
@@ -291,17 +283,62 @@ class Scheme:
             except IndexError:
                 # Return translated arguments
                 return [(curr_values.name,
-                         curr_values.close(name),
+                         curr_values.close(name, argument),
                          processed)]
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     def parse_iter(self, arguments,
-                         catch_errors=False):
+                         debug        = False,
+                         catch_errors = False):
+        if debug:
+            print('\nRaw command:', *arguments, sep=' ')
+            print('Context hierarchy:', self._hierarchy)
+            print('All flags:', ', '.join(self._flags.keys()))
         if catch_errors:
+            # TODO: ** "Graphical" error strings **
+            #       At some point add better feedback to object
+            #       hook when closing, to produce error like
+            #       this:
+            #
+            #           fullcmd --this --that
+            #                   ^^^^^^ ~~~~~~
+            #       UnfinishedPattern: SINGLE_VALUE, --this, --that
             try:
                 return self._parse_iter(arguments)
-            except Exception:
+            except Pattern.FinishedPattern as e:
+                type, flag, value = e.args
+                try:
+                    print({
+                        Pattern.STATE_SWITCH:
+                            'Flag {!r} does not take any values, '
+                            'but one was given: {!r}',
+                        Pattern.SINGLE_VALUE:
+                            'Flag {!r} takes only a single value, '
+                            'but another one was given: {!r}',
+                        }[type].format(flag, value), file=stderr)
+                except KeyError:
+                    raise e
+            except Pattern.UnfinishedPattern as e:
+                type, flag, value = e.args
+                try:
+                    print({
+                        Pattern.SINGLE_VALUE:
+                            'Flag {!r} takes exactly one value, but '
+                            'none was given before: {!r}',
+                        Pattern.COMMON_ARRAY:
+                            'Flag {!r} takes at least one value, but '
+                            'none was given before: {!r}',
+                        Pattern.UNIQUE_ARRAY:
+                            'Flag {!r} takes at least one value, but '
+                            'none was given before: {!r}',
+                        Pattern.NAMED_VALUES:
+                            'Flag {!r} takes at least one value pair, but '
+                            'none was given before: {!r}',
+                        }[type].format(flag, value), file=stderr)
+                except KeyError:
+                    raise e
+            except Scheme.ArgumentOutOfContext as e:
                 raise
         else:
             return self._parse_iter(arguments)
@@ -309,15 +346,17 @@ class Scheme:
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     def parse_args(self, *arguments,
-                         catch_errors=False):
-        return self.parse_iter(arguments, catch_errors)
+                         debug        = False,
+                         catch_errors = False):
+        return self.parse_iter(arguments, debug, catch_errors)
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     def parse_line(self, arguments,
+                         debug         = False,
                          catch_errors  = False,
                          split_pattern = compile(r'(?<!\\)\s+')):
-        return self.parse_iter(split(split_pattern, arguments), catch_errors)
+        return self.parse_iter(split(split_pattern, arguments), debug, catch_errors)
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #

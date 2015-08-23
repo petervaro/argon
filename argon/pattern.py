@@ -203,6 +203,12 @@ class Pattern:
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    class _EOL:
+        def __repr__(self):
+            return '<EOL>'
+
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     class _ObjectHook:
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
@@ -211,7 +217,12 @@ class Pattern:
             return self._name
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-        def close(self, flag):
+        @property
+        def flag(self):
+            return self._flag
+
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+        def close(self, name, flag):
             return self._values
 
 
@@ -220,35 +231,41 @@ class Pattern:
 
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-        def __init__(self, name, is_required):
+        def __init__(self, name, flag, is_required):
             self._name   = name
+            self._flag   = flag
             self._values = True
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
         def add_value(self, value):
-            raise Pattern.FinishedPattern(self._name, value) from None
+            raise Pattern.FinishedPattern(
+                Pattern.STATE_SWITCH, self._flag, value) from None
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     class SINGLE_VALUE(_ObjectHook):
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-        def __init__(self, name, is_required):
+        def __init__(self, name, flag, is_required):
             self._name        = name
+            self._flag        = flag
             self._values      = None
             self._is_required = is_required
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
         def add_value(self, value):
             if self._values is not None:
-                raise Pattern.FinishedPattern(self._name, value) from None
+                raise Pattern.FinishedPattern(
+                    Pattern.SINGLE_VALUE, self._flag, value) from None
             self._values = value
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-        def close(self, flag):
+        def close(self, name, flag):
             if (self._is_required and
                 self._values is None):
-                    raise Pattern.UnfinishedPattern((self._name, flag)) from None
+                    raise Pattern.UnfinishedPattern(
+                        Pattern.SINGLE_VALUE, self._flag,
+                        Pattern._EOL() if name is NotImplemented else flag) from None
             return self._values
 
 
@@ -256,8 +273,9 @@ class Pattern:
     class COMMON_ARRAY(_ObjectHook):
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-        def __init__(self, name, is_required):
+        def __init__(self, name, flag, is_required):
             self._name        = name
+            self._flag        = flag
             self._values      = []
             self._is_required = is_required
 
@@ -266,10 +284,12 @@ class Pattern:
             self._values.append(value)
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-        def close(self, flag):
+        def close(self, name, flag):
             if (self._is_required and
                 not self._values):
-                    raise Pattern.UnfinishedPattern((self._name, flag)) from None
+                    raise Pattern.UnfinishedPattern(
+                        Pattern.SINGLE_VALUE, self._flag,
+                        Pattern._EOL() if name is NotImplemented else flag) from None
             return self._values
 
 
@@ -277,8 +297,9 @@ class Pattern:
     class UNIQUE_ARRAY(_ObjectHook):
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-        def __init__(self, name, is_required):
+        def __init__(self, name, flag, is_required):
             self._name        = name
+            self._flag        = flag
             self._values      = OrderedSet()
             self._is_required = is_required
 
@@ -287,10 +308,12 @@ class Pattern:
             self._values.add(value)
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-        def close(self, flag):
+        def close(self, name, flag):
             if (self._is_required and
                 not self._values):
-                    raise Pattern.UnfinishedPattern((self._name, flag)) from None
+                    raise Pattern.UnfinishedPattern(
+                        Pattern.SINGLE_VALUE, self._flag,
+                        Pattern._EOL() if name is NotImplemented else flag) from None
             return self._values
 
 
@@ -298,8 +321,9 @@ class Pattern:
     class NAMED_VALUES(_ObjectHook):
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-        def __init__(self, name, is_required):
+        def __init__(self, name, flag, is_required):
             self._name        = name
+            self._flag        = flag
             self._key         = NotImplemented
             self._values      = OrderedDict()
             self._is_required = is_required
@@ -313,11 +337,13 @@ class Pattern:
                 self._key = NotImplemented
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-        def close(self, flag):
+        def close(self, name, flag):
             if (self._key is not NotImplemented or
                 (self._is_required and
                  not self._values)):
-                    raise Pattern.UnfinishedPattern((self._name, flag)) from None
+                    raise Pattern.UnfinishedPattern(
+                        Pattern.SINGLE_VALUE, self._flag,
+                        Pattern._EOL() if name is NotImplemented else flag) from None
             return self._values
 
 
