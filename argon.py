@@ -268,17 +268,22 @@ class Option:
                 cmd --group1 --this x --group2 --this y
     """
 
-    __FLAG_TYPE   = tuple(range(3))
-    __MEMBER_TYPE = tuple(range(2))
+    __FLAG_TYPE       = tuple(range(3))
+    __MEMBER_TYPE     = tuple(range(2))
+    __VALUE_NECESSITY = tuple(range(2))
 
     # 'flag_type-enums'
     (COMMON,
      PRIMAL,
      UNIQUE) = __FLAG_TYPE
 
-    # 'member_type-enum'
+    # 'member_type-enums'
     (ONE,
      ANY) = __MEMBER_TYPE
+
+    # 'value_necessity-enums'
+    (OPTIONAL,
+     REQUIRED) = __VALUE_NECESSITY
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
@@ -306,8 +311,8 @@ class Option:
 
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-        def __init__(self, name):
-            self._name = name
+        def __init__(self, name, is_required):
+            self._name   = name
             self._values = True
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
@@ -315,25 +320,26 @@ class Option:
             raise Option.FinishedOption(self._name, value) from None
 
 
-
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     class SINGLE_VALUE(_ObjectHook):
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-        def __init__(self, name):
-            self._name = name
-            self._values = NotImplemented
+        def __init__(self, name, is_required):
+            self._name        = name
+            self._values      = None
+            self._is_required = is_required
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
         def add_value(self, value):
-            if self._values is not NotImplemented:
+            if self._values is not None:
                 raise Option.FinishedOption(self._name, value) from None
             self._values = value
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
         def close(self, flag):
-            if self._values is NotImplemented:
-                raise Option.UnfinishedOption((self._name, flag)) from None
+            if (self._is_required and
+                self._values is None):
+                    raise Option.UnfinishedOption((self._name, flag)) from None
             return self._values
 
 
@@ -341,9 +347,10 @@ class Option:
     class COMMON_ARRAY(_ObjectHook):
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-        def __init__(self, name):
-            self._name = name
-            self._values = []
+        def __init__(self, name, is_required):
+            self._name        = name
+            self._values      = []
+            self._is_required = is_required
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
         def add_value(self, value):
@@ -351,8 +358,9 @@ class Option:
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
         def close(self, flag):
-            if not self._values:
-                raise Option.UnfinishedOption((self._name, flag)) from None
+            if (self._is_required and
+                not self._values):
+                    raise Option.UnfinishedOption((self._name, flag)) from None
             return self._values
 
 
@@ -360,9 +368,10 @@ class Option:
     class UNIQUE_ARRAY(_ObjectHook):
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-        def __init__(self, name):
-            self._name = name
-            self._values = OrderedSet()
+        def __init__(self, name, is_required):
+            self._name        = name
+            self._values      = OrderedSet()
+            self._is_required = is_required
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
         def add_value(self, value):
@@ -370,8 +379,9 @@ class Option:
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
         def close(self, flag):
-            if not self._values:
-                raise Option.UnfinishedOption((self._name, flag)) from None
+            if (self._is_required and
+                not self._values):
+                    raise Option.UnfinishedOption((self._name, flag)) from None
             return self._values
 
 
@@ -379,10 +389,11 @@ class Option:
     class NAMED_VALUES(_ObjectHook):
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-        def __init__(self, name):
-            self._name = name
-            self._key = NotImplemented
-            self._values = OrderedDict()
+        def __init__(self, name, necessity):
+            self._name      = name
+            self._key       = NotImplemented
+            self._values    = OrderedDict()
+            self._necessity = necessity
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
         def add_value(self, value):
@@ -394,10 +405,12 @@ class Option:
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
         def close(self, flag):
-            if (not self._values or
-                self._key is not NotImplemented):
+            if (self._key is not NotImplemented or
+                (self._is_required and
+                 not self._values)):
                     raise Option.UnfinishedOption((self._name, flag)) from None
             return self._values
+
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     @staticmethod
@@ -449,6 +462,12 @@ class Option:
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     @property
+    def value_necessity(self):
+        return self._value_necessity
+
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    @property
     def object_hook(self):
         return self._object_hook
 
@@ -461,15 +480,16 @@ class Option:
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     def __init__(self, long_flag,
-                       short_flags    = (),
-                       long_prefix    = '--',
-                       short_prefix   = '-',
-                       flag_type      = COMMON,
-                       members        = (),
-                       member_type    = ANY,
-                       value_type     = SINGLE_VALUE,
-                       char_validitor = CHAR_VALIDATOR.__func__,
-                       description    = ''):
+                       short_flags     = (),
+                       long_prefix     = '--',
+                       short_prefix    = '-',
+                       flag_type       = COMMON,
+                       members         = (),
+                       member_type     = ANY,
+                       value_type      = SINGLE_VALUE,
+                       value_necessity = REQUIRED,
+                       char_validitor  = CHAR_VALIDATOR.__func__,
+                       description     = ''):
         # Check for flag's validity
         short_flags = set(short_flags)
         for flag in chain((long_flag,), short_flags):
@@ -504,6 +524,16 @@ class Option:
                              "not {!r}".format(value_type))
         self._object_hook = value_type
 
+        # Check and store value_necessity
+        if value_necessity not in Option.__VALUE_NECESSITY:
+            raise ValueError("'value_necessity' has to be Option.OPTIONAL or "
+                             "Option.REQUIRED, not {!r}".format(value_necessity))
+        self._value_necessity = value_necessity
+        if value_necessity:
+            necessity = lambda s: s
+        else:
+            necessity = lambda s: '[' + s + ']'
+
         # Check and store member_type
         if member_type not in Option.__MEMBER_TYPE:
             raise ValueError("'member_type' has to be Option.ONE or "
@@ -514,10 +544,10 @@ class Option:
         if isinstance(description, str):
             description = Text.Section(
                 Text.Flags({Option.STATE_SWITCH: '',
-                            Option.SINGLE_VALUE: '<value>',
-                            Option.COMMON_ARRAY: '<value>...',
-                            Option.UNIQUE_ARRAY: '<value>...',
-                            Option.NAMED_VALUES: '<key> <value>...'}[value_type]),
+                            Option.SINGLE_VALUE: necessity('<value>'),
+                            Option.COMMON_ARRAY: necessity('<value>...'),
+                            Option.UNIQUE_ARRAY: necessity('<value>...'),
+                            Option.NAMED_VALUES: necessity('<key> <value>...')}[value_type]),
                 Text.Paragraph(description))
         elif not isinstance(description, Text.Section):
             raise TypeError("'description' expected str or Text.Section, "
@@ -823,7 +853,7 @@ class Arguments:
                     curr_primals.add(name)
 
                 # Open a new option
-                curr_values  = option.object_hook(name)
+                curr_values  = option.object_hook(name, option.value_necessity)
                 curr_members = []
                 open_values.append(curr_values)
                 open_members.append(curr_members)
