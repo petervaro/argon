@@ -6,7 +6,7 @@
 from distutils.core import setup
 
 setup(name         = 'argon',
-      version      = '0.2.3',
+      version      = '0.2.4',
       description  = 'Powerful and Flexible Argument Handler',
       author       = 'Peter Varo',
       author_email = 'petervaro@sketchandprototype.com',

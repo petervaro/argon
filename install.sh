@@ -46,7 +46,7 @@ fi;
 
 
 # Remove 'dependencies' directory if present
-rm -Rf dependencies;
+sudo rm -Rf dependencies;
 
 
 # Install argon

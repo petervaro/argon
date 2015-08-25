@@ -127,21 +127,25 @@ class Scheme:
             Scheme.MemberTypeAlreadyUsed
                 Raised when members are limited to be used ONE time only
         """
-        flags        = self._flags
-        hierarchy    = self._hierarchy
-        arguments    = iter(arguments)
-        context      = hierarchy
-        contexts     = [context]
-        curr_values  = None
-        open_values  = []
-        curr_members = None
-        open_members = []
-        processed    = []
-        curr_ones    = None
-        open_ones    = []
-        unique_flags = set()
-        curr_primals = set()
-        primal_flags = [curr_primals]
+        # TODO: ** variable renaming **
+        #       Make variable names consistent and self-explanatory
+        flags         = self._flags
+        hierarchy     = self._hierarchy
+        arguments     = iter(arguments)
+        context       = hierarchy
+        contexts      = []
+        context_path  = []
+        context_index = 0
+        curr_values   = None
+        open_values   = []
+        curr_members  = None
+        open_members  = []
+        processed     = []
+        curr_ones     = None
+        open_ones     = []
+        unique_flags  = set()
+        curr_primals  = set()
+        primal_flags  = [curr_primals]
 
         #for argument in arguments:
         while True:
@@ -169,8 +173,7 @@ class Scheme:
                     # If there are no open patterns waiting for values
                     except AttributeError:
                         raise Scheme.InvalidArgument(argument) from None
-
-                # Try to find the context of the flag
+                # Get long_flag as name
                 name = pattern.name
             # If all arguments processed
             except StopIteration:
@@ -179,29 +182,29 @@ class Scheme:
                 name = NotImplemented
 
             try:
+                # Try to find the context of the flag
                 while True:
                     try:
-                        # If context of pattern found (current context)
-                        if name in context:
-                            # Close current context and open a new pattern
-                            raise Scheme._CloseCurrentPattern(True)
+                        # If context of pattern found in current context
+                        try:
+                            # Open new context
+                            sub_context = context[name]
+                            context_path = context_path[:context_index]
+                            context_path.append(argument)
+                            context_index += 1
+                            # Jump one level down
+                            contexts.append(sub_context)
+                            context = sub_context
+                            # Create new primal flag context
+                            curr_primals = set()
+                            primal_flags.append(curr_primals)
+                            # Finish searching
+                            raise Scheme._ContextFound
 
-                        # Check if context of pattern is a new sub-context
-                        for sub_context in context.values():
-                            # If context of pattern found
-                            if name in sub_context:
-                                # Open new context
-                                contexts.append(sub_context)
-                                # Jump one level down
-                                context = sub_context
-                                # Create new primal flag context
-                                curr_primals = set()
-                                primal_flags.append(curr_primals)
-                                # Finished searching
-                                raise Scheme._ContextFound
+                        # If context of pattern not found in current context
+                        except KeyError:
+                            context_index -= 1
 
-                        # If context of pattern is not found
-                        # (in current context and in sub-context)
                         # Close current context and jump one level up
                         try:
                             contexts.pop()
@@ -210,14 +213,15 @@ class Scheme:
                         except IndexError:
                             # If this is a regular cycle, not a "close-all-left"
                             if name is not NotImplemented:
-                                raise Scheme.ArgumentOutOfContext(argument) from None
+                                raise Scheme.ArgumentOutOfContext(
+                                    context_path, argument) from None
 
                         # Close current pattern and
                         # continue searching for context
-                        raise Scheme._CloseCurrentPattern(False)
+                        raise Scheme._CloseCurrentPattern
 
                     # Close current pattern
-                    except Scheme._CloseCurrentPattern as message:
+                    except Scheme._CloseCurrentPattern:
                         # If this is the nth argument
                         try:
                             # Create pattern-tuple
@@ -239,10 +243,6 @@ class Scheme:
                         # If this is the first argument
                         except AttributeError:
                             pass
-
-                        # If context has also found
-                        if message.args[0]:
-                            raise Scheme._ContextFound
 
             # If a new pattern can be opened
             except Scheme._ContextFound:
@@ -275,7 +275,7 @@ class Scheme:
                 open_members.append(curr_members)
 
                 # If this context limits the number of appearences of its
-                # members, use a collections, otherwise a None
+                # members, use a collection, otherwise a None
                 curr_ones = set() if pattern.member_type is Pattern.ONE else None
                 open_ones.append(curr_ones)
 
@@ -292,9 +292,13 @@ class Scheme:
                          debug        = False,
                          catch_errors = False):
         if debug:
-            print('\nRaw command:', *arguments, sep=' ')
-            print('Context hierarchy:', self._hierarchy)
-            print('All flags:', ', '.join(self._flags.keys()))
+            new_line = '\n' + ' '*4
+            print('\n==> Raw command:',
+                  ' '.join(arguments), sep=new_line)
+            print('\n==> Context hierarchy:',
+                  *Scheme.print_hierarchy(self._hierarchy), sep=new_line)
+            print('\n==> All flags:',
+                  ', '.join(self._flags.keys()), sep=new_line, end='\n\n')
         if catch_errors:
             # TODO: ** "Graphical" error strings **
             #       At some point add better feedback to object
@@ -339,7 +343,9 @@ class Scheme:
                 except KeyError:
                     raise e
             except Scheme.ArgumentOutOfContext as e:
-                raise
+                path, flag = e.args
+                print('Flag {!r} is not a sub-flag of the following '
+                      'flags:'.format(flag), ', '.join('{!r}'.format(f) for f in path))
         else:
             return self._parse_iter(arguments)
 
@@ -418,3 +424,12 @@ class Scheme:
                                no_color = no_color,
                                owner    = None,
                                patterns  = self._patterns)
+
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    @staticmethod
+    def print_hierarchy(hierarchy, indent=0, prefix='... '):
+        prefix *= indent
+        for context, members in sorted(hierarchy.items()):
+            yield prefix + context + (':' if members else '')
+            yield from Scheme.print_hierarchy(members, indent + 1)
