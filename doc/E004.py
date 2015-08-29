@@ -62,21 +62,19 @@ scheme = Scheme(
                 Paragraph('Print this text.'))))
 
 # Process input from user
+processed = scheme.parse_iter(argv, catch_errors=True)
+traverse  = Scheme.branch_traverse(processed)
+
+# Get what we have if there was no error
 try:
-    processed = scheme.parse_iter(argv)
-except Pattern.FinishedPattern as e:
-    flag, value = e.args
-    if flag == __file__:
-        print('Invalid flag for {!r}: {!r}'.format(flag, value))
-    else:
-        print('Flag {!r} does not take any value, '
-              'but {!r} was given'.format(flag, value))
-    # Invalid argument exit
+    # Get rid of command-name
+    next(traverse)
+# If there was error
+except TypeError:
     exit(EINVAL)
 
-# Print what we have
-traverse = Scheme.branch_traverse(processed)
-next(traverse)
+
+# Process arguments
 try:
     flag, value = next(traverse)
     if flag == 'help':

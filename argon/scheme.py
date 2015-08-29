@@ -36,7 +36,7 @@ class Scheme:
     class CircularReferences(SchemeException)     : pass
     class DoubleUniqueArgument(SchemeException)   : pass
     class DoublePrimalArgument(SchemeException)   : pass
-    class MemberTypeAlreadyUsed(SchemeException)  : pass
+    class TooManyMembersUsed(SchemeException)     : pass
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
@@ -124,8 +124,8 @@ class Scheme:
                 Raised when UNIQUE pattern is used more than once
             Scheme.DoublePrimalArgument
                 Raised when PRIMAL pattern is used more than once in context
-            Scheme.MemberTypeAlreadyUsed
-                Raised when members are limited to be used ONE time only
+            Scheme.TooManyMembersUsed
+                Raised when only ONE member is allowed to be used
         """
         # TODO: ** variable renaming **
         #       Make variable names consistent and self-explanatory
@@ -188,13 +188,22 @@ class Scheme:
                         # If context of pattern found in current context
                         try:
                             # Open new context
-                            sub_context = context[name]
+                            sub_context  = context[name]
+                            # Update context path
                             context_path = context_path[:context_index]
                             context_path.append(argument)
                             context_index += 1
                             # Jump one level down
                             contexts.append(sub_context)
                             context = sub_context
+                            # If pattern is PRIMAL
+                            if pattern.flag_type == Pattern.PRIMAL:
+                                # If primal pattern already used in the current context
+                                if name in curr_primals:
+                                    raise Scheme.DoublePrimalArgument(
+                                        context_path[-2], argument) from None
+                                # If not used, mark it as used for the first time
+                                curr_primals.add(name)
                             # Create new primal flag context
                             curr_primals = set()
                             primal_flags.append(curr_primals)
@@ -209,7 +218,8 @@ class Scheme:
                         try:
                             contexts.pop()
                             context = contexts[-1]
-                            curr_primals = primal_flags.pop()
+                            primal_flags.pop()
+                            curr_primals = primal_flags[-1]
                         except IndexError:
                             # If this is a regular cycle, not a "close-all-left"
                             if name is not NotImplemented:
@@ -248,24 +258,19 @@ class Scheme:
             except Scheme._ContextFound:
                 # If current context limits the number of use of its members
                 try:
+                    # Store current argument
+                    curr_ones[name] = argument
                     # If member has already been used
-                    if len(curr_ones):
-                        raise Scheme.MemberTypeAlreadyUsed(
-                            curr_ones.pop(), argument) from None
-                    # If this is the first time, this member appeared
-                    curr_ones.add(argument)
+                    if len(curr_ones) > 1:
+                        curr_ones.pop(name)
+                        raise Scheme.TooManyMembersUsed(
+                            context_path[-2],
+                            curr_ones.popitem()[1],
+                            argument) from None
                 # If current context allows for its
                 # member to appear more than once
                 except TypeError:
                     pass
-
-                # If pattern is PRIMAL
-                if pattern.flag_type == Pattern.PRIMAL:
-                    # If primal pattern already used in the current context
-                    if name in curr_primals:
-                        raise Scheme.DoublePrimalArgument(argument) from None
-                    # If not used, mark it as used for the first time
-                    curr_primals.add(name)
 
                 # Open a new pattern
                 curr_values  = \
@@ -276,7 +281,7 @@ class Scheme:
 
                 # If this context limits the number of appearences of its
                 # members, use a collection, otherwise a None
-                curr_ones = set() if pattern.member_type is Pattern.ONE else None
+                curr_ones = {} if pattern.member_type is Pattern.ONE else None
                 open_ones.append(curr_ones)
 
             # If reached the top-level and the context still did not match
@@ -298,7 +303,7 @@ class Scheme:
             print('\n==> Context hierarchy:',
                   *Scheme.print_hierarchy(self._hierarchy), sep=new_line)
             print('\n==> All flags:',
-                  ', '.join(self._flags.keys()), sep=new_line, end='\n\n')
+                  ', '.join(sorted(self._flags.keys())), sep=new_line, end='\n\n')
         if catch_errors:
             # TODO: ** "Graphical" error strings **
             #       At some point add better feedback to object
@@ -310,6 +315,7 @@ class Scheme:
             #       UnfinishedPattern: SINGLE_VALUE, --this, --that
             try:
                 return self._parse_iter(arguments)
+
             except Pattern.FinishedPattern as e:
                 type, flag, value = e.args
                 try:
@@ -323,6 +329,7 @@ class Scheme:
                         }[type].format(flag, value), file=stderr)
                 except KeyError:
                     raise e
+
             except Pattern.UnfinishedPattern as e:
                 type, flag, value = e.args
                 try:
@@ -342,10 +349,29 @@ class Scheme:
                         }[type].format(flag, value), file=stderr)
                 except KeyError:
                     raise e
+
             except Scheme.ArgumentOutOfContext as e:
                 path, flag = e.args
-                print('Flag {!r} is not a sub-flag of the following '
-                      'flags:'.format(flag), ', '.join('{!r}'.format(f) for f in path))
+                print('Flag {!r} is not a member of the following '
+                      'contexts:'.format(flag),
+                      ', '.join('{!r}'.format(f) for f in path) if path
+                      else 'no context', file=stderr)
+
+            except Scheme.DoubleUniqueArgument as e:
+                print('Flag {!r} cannot be used more than '
+                      'once'.format(e.args[0]), file=stderr)
+
+            except Scheme.DoublePrimalArgument as e:
+                context, flag = e.args
+                print('Flag {!r} cannot be used more than once in its context: '
+                      '{!r}'.format(flag, context), file=stderr)
+
+            except Scheme.TooManyMembersUsed as e:
+                context, used, flag = e.args
+                print('Flag {!r} cannot be passed to context {!r} as it '
+                      'already has {!r}'.format(flag, context, used), file=stderr)
+
+        # If no error catching
         else:
             return self._parse_iter(arguments)
 

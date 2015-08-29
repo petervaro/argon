@@ -31,18 +31,12 @@ scheme = Scheme(Program(__file__, members     = ('this',
                                   flag_type   = Pattern.UNIQUE))
 
 # Process input from user
-try:
-    processed = scheme.parse_iter(argv)
-except Pattern.FinishedPattern as e:
-    flag, value = e.args
-    if flag == __file__:
-        print('Invalid flag for {!r}: {!r}'.format(flag, value))
-    else:
-        print('Flag {!r} does not take any value, '
-              'but {!r} was given'.format(flag, value))
-    # Invalid argument exit
-    exit(EINVAL)
+processed = scheme.parse_iter(argv, catch_errors=True)
 
-# Print what we have
-for flag, value in Scheme.branch_traverse(processed):
-    print(flag, '=>', value)
+# Print what we have if there was no error
+try:
+    for flag, value in Scheme.branch_traverse(processed):
+        print(flag, '=>', value)
+# If there was error
+except TypeError:
+    exit(EINVAL)

@@ -84,10 +84,16 @@ class Pattern:
             of this Pattern at one time.
 
             ONE:
-                Only one member allowed at the context of this Pattern
+                Only one member allowed at the context of this Pattern.
+
+                    Eg. cmd --this --that
+
+                This is not valud, since `cmd`'s member_type is ONE, and both
+                `this` and `that` are members of `cmd`, therefore only one of
+                them allowed to be used at a time.
 
             ANY (default):
-                Any members allowed at any context of any Patterns
+                Any members allowed at any context of any Patterns.
 
 
         value_type:
@@ -206,7 +212,6 @@ class Pattern:
     class _EOL:
         def __repr__(self):
             return '<EOL>'
-
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     class _ObjectHook:
@@ -429,7 +434,7 @@ class Pattern:
         for flag in chain((long_flag,), short_flags):
             if not isinstance(flag, str):
                 raise Pattern.InvalidFlagName(
-                    "Type of a flag name should be 'str', not "
+                    "Type of a flag name should be 'str', not: "
                     "{0.__class__.__qualname__!r} ".format(flag))
             # If the user accidentally added the `-` or `--` prefixes
             # TODO: check for `/` windows prefix as well
@@ -445,23 +450,32 @@ class Pattern:
 
         # Check and store flag_type
         if flag_type not in Pattern.__FLAG_TYPE:
+            # If passed value is not a class
+            if not isinstance(flag_type, type):
+                flag_type = flag_type.__class__
             raise ValueError("'flag_type' has to be Pattern.COMMON "
                              "or Pattern.PRIMAL or Pattern.UNIQUE, "
-                             "not {!r}".format(flag_type))
+                             "not: {.__qualname__!r}".format(flag_type))
         self._flag_type = flag_type
 
         # Check and store value_type
         if value_type not in Pattern.__VALUE_TYPE:
+            # If passed value is not a class
+            if not isinstance(value_type, type):
+                value_type = value_type.__class__
             raise ValueError("'value_type' has to be Pattern.STATE_SWITCH "
                              "or Pattern.SINGLE_VALUE or Pattern.COMMON_ARRAY "
                              "or Pattern.UNIQUE_ARRAY or Pattern.NAMED_VALUES, "
-                             "not {!r}".format(value_type))
+                             "not: {!r}".format(value_type))
         self._object_hook = value_type
 
         # Check and store value_necessity
         if value_necessity not in Pattern.__VALUE_NECESSITY:
+            # If passed value is not a class
+            if not isinstance(value_necessity, type):
+                value_necessity = value_necessity.__class__
             raise ValueError("'value_necessity' has to be Pattern.OPTIONAL or "
-                             "Pattern.REQUIRED, not {!r}".format(value_necessity))
+                             "Pattern.REQUIRED, not: {!r}".format(value_necessity))
         self._value_necessity = value_necessity
         if value_necessity:
             necessity = lambda s: s
@@ -470,8 +484,11 @@ class Pattern:
 
         # Check and store member_type
         if member_type not in Pattern.__MEMBER_TYPE:
+            # If passed value is not a class
+            if not isinstance(member_type, type):
+                member_type = member_type.__class__
             raise ValueError("'member_type' has to be Pattern.ONE or "
-                             "Pattern.ANY, not {!r}".format(member_type))
+                             "Pattern.ANY, not: {!r}".format(member_type))
         self._member_type = member_type
 
         # Check and store description
@@ -485,7 +502,7 @@ class Pattern:
                 Paragraph(description))
         elif not isinstance(description, Section):
             raise TypeError("'description' expected str or argon.text.Section, "
-                            "got {.__class__.__qualname__!r}".format(description))
+                            "got: {.__class__.__qualname__!r}".format(description))
         description.owner = self
         self._description = description
 
