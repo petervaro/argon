@@ -6,16 +6,23 @@ argon
 Description
 -----------
 
-`argon` is a powerful and super flexible CLI argument parser. It can almost
-handle any type of interface schemas. Some of its characteristics:
+`argon` is a powerful and super flexible CLI argument parser. It can handle
+almost any type of interface schemes. Some of its characteristics:
 
-- it can handle boolean flags, flags with single values, flags with value arrays
-  (values both repeated or unique) and flags with named values (key-value pairs)
+- it can handle:
+    - boolean flags,
+    - flags with optional or mandatory single values,
+    - flags with optional or mandatory value arrays
+      (values both repeated or unique),
+    - flags with optional or manadatory named values (key-value pairs)
 - it can handle nested flags (contexts)
-- it has an easy to use, very dynamic and lasy declarative style
+- it has an easy to use, very dynamic and lazy declarative style
 - it has a unified parsed return value, but also provides several traverse
-  functions for easier argument/value checking
-- it has a tiny, but powerful text-templating system to build help texts
+  functions for easier argument + value + members checking
+- it has a tiny, but powerful text-templating system to build reusable help
+  texts
+- it has very informative errors, and optionally it can handle those errors as
+  well
 - almost everything is customizable about it
 
 

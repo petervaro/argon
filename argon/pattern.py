@@ -80,7 +80,7 @@ class Pattern:
             Pattern instances.
 
         member_type:
-            This argument restrict how many members are allowed in the context
+            This argument restricts how many members are allowed in the context
             of this Pattern at one time.
 
             ONE:
@@ -94,6 +94,16 @@ class Pattern:
 
             ANY (default):
                 Any members allowed at any context of any Patterns.
+
+        member_necessity:
+            This argument restricts the usage of the members of this pattern.
+
+            OPTIONAL (default):
+                This pattern can be followed by its members, another pattern or
+                nothing.
+
+            REQUIRED:
+                This pattern must be followed by at least one of its patterns.
 
 
         value_type:
@@ -183,9 +193,9 @@ class Pattern:
             argon.scheme.Scheme.write_help method.)
     """
 
-    __FLAG_TYPE       = tuple(range(3))
-    __MEMBER_TYPE     = tuple(range(2))
-    __VALUE_NECESSITY = tuple(range(2))
+    __FLAG_TYPE   = tuple(range(3))
+    __MEMBER_TYPE = tuple(range(2))
+    __NECESSITY   = tuple(range(2))
 
     # 'flag_type-enums'
     (COMMON,
@@ -198,7 +208,7 @@ class Pattern:
 
     # 'value_necessity-enums'
     (OPTIONAL,
-     REQUIRED) = __VALUE_NECESSITY
+     REQUIRED) = __NECESSITY
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
@@ -209,7 +219,7 @@ class Pattern:
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-    class _EOL:
+    class EOL:
         def __repr__(self):
             return '<EOL>'
 
@@ -270,7 +280,7 @@ class Pattern:
                 self._values is None):
                     raise Pattern.UnfinishedPattern(
                         Pattern.SINGLE_VALUE, self._flag,
-                        Pattern._EOL() if name is NotImplemented else flag) from None
+                        Pattern.EOL() if name is NotImplemented else flag) from None
             return self._values
 
 
@@ -294,7 +304,7 @@ class Pattern:
                 not self._values):
                     raise Pattern.UnfinishedPattern(
                         Pattern.SINGLE_VALUE, self._flag,
-                        Pattern._EOL() if name is NotImplemented else flag) from None
+                        Pattern.EOL() if name is NotImplemented else flag) from None
             return self._values
 
 
@@ -318,7 +328,7 @@ class Pattern:
                 not self._values):
                     raise Pattern.UnfinishedPattern(
                         Pattern.SINGLE_VALUE, self._flag,
-                        Pattern._EOL() if name is NotImplemented else flag) from None
+                        Pattern.EOL() if name is NotImplemented else flag) from None
             return self._values
 
 
@@ -348,7 +358,7 @@ class Pattern:
                  not self._values)):
                     raise Pattern.UnfinishedPattern(
                         Pattern.SINGLE_VALUE, self._flag,
-                        Pattern._EOL() if name is NotImplemented else flag) from None
+                        Pattern.EOL() if name is NotImplemented else flag) from None
             return self._values
 
 
@@ -377,14 +387,25 @@ class Pattern:
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     @property
+    def long_flag(self):
+        return self._long_flag
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    @property
     def flags(self):
-        yield from self._flags
+        yield from chain((self._long_flag,), self._short_flags)
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     @property
     def members(self):
         yield from self._members
+
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    @property
+    def member_necessity(self):
+        return self._member_necessity
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
@@ -419,16 +440,17 @@ class Pattern:
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     def __init__(self, long_flag,
-                       short_flags     = (),
-                       long_prefix     = '--',
-                       short_prefix    = '-',
-                       flag_type       = COMMON,
-                       members         = (),
-                       member_type     = ANY,
-                       value_type      = SINGLE_VALUE,
-                       value_necessity = REQUIRED,
-                       flag_validator  = FLAG_VALIDATOR.__func__,
-                       description     = ''):
+                       short_flags      = (),
+                       long_prefix      = '--',
+                       short_prefix     = '-',
+                       flag_type        = COMMON,
+                       members          = (),
+                       member_type      = ANY,
+                       member_necessity = OPTIONAL,
+                       value_type       = SINGLE_VALUE,
+                       value_necessity  = REQUIRED,
+                       flag_validator   = FLAG_VALIDATOR.__func__,
+                       description      = ''):
         # Check for flag's validity
         short_flags = set(short_flags)
         for flag in chain((long_flag,), short_flags):
@@ -444,9 +466,9 @@ class Pattern:
             flag_validator(flag)
 
         # Store flags
-        self._name  = long_flag
-        self._flags = {f for f in chain((long_prefix + long_flag,),
-                                        (short_prefix + s for s in short_flags))}
+        self._name        = long_flag
+        self._long_flag   = long_prefix + long_flag
+        self._short_flags = {short_prefix + f for f in short_flags}
 
         # Check and store flag_type
         if flag_type not in Pattern.__FLAG_TYPE:
@@ -470,7 +492,7 @@ class Pattern:
         self._object_hook = value_type
 
         # Check and store value_necessity
-        if value_necessity not in Pattern.__VALUE_NECESSITY:
+        if value_necessity not in Pattern.__NECESSITY:
             # If passed value is not a class
             if not isinstance(value_necessity, type):
                 value_necessity = value_necessity.__class__
@@ -490,6 +512,15 @@ class Pattern:
             raise ValueError("'member_type' has to be Pattern.ONE or "
                              "Pattern.ANY, not: {!r}".format(member_type))
         self._member_type = member_type
+
+        # Check and store member_necessity
+        if member_necessity not in Pattern.__NECESSITY:
+            # If passed value is not a class
+            if not isinstance(member_necessity, type):
+                member_necessity = member_necessity.__class__
+            raise ValueError("'member_necessity' has to be Pattern.OPTIONAL or "
+                             "Pattern.REQUIRED, not: {!r}".format(member_necessity))
+        self._member_necessity = member_necessity
 
         # Check and store description
         if isinstance(description, str):

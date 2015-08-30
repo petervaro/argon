@@ -28,7 +28,7 @@ class Block:
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     def __init__(self, *blocks,
-                       indent = None):
+                       indent=None):
         self._blocks = blocks
         self._indent = self.INDENT if indent is None else indent
 

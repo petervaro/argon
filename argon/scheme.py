@@ -37,6 +37,7 @@ class Scheme:
     class DoubleUniqueArgument(SchemeException)   : pass
     class DoublePrimalArgument(SchemeException)   : pass
     class TooManyMembersUsed(SchemeException)     : pass
+    class MissingMember(SchemeException)          : pass
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
@@ -62,7 +63,9 @@ class Scheme:
         self._patterns = patterns = {}
         for pattern in pattern_objects:
             if patterns.get(pattern.name, None):
-                raise Pattern.LongFlagIsNotUnique
+                raise Scheme.LongFlagIsNotUnique(
+                    'Long flag is used more than once: '
+                    '{!r}'.format(pattern.name))
             patterns[pattern.name] = pattern
             fgraph.add_vertex(pattern.name)
             rgraph.add_vertex(pattern.name)
@@ -126,10 +129,14 @@ class Scheme:
                 Raised when PRIMAL pattern is used more than once in context
             Scheme.TooManyMembersUsed
                 Raised when only ONE member is allowed to be used
+            Scheme.MissingMember
+                Raised when member_necessity of a pattern is REQUIRED but it is
+                not followed by any of its members
         """
         # TODO: ** variable renaming **
         #       Make variable names consistent and self-explanatory
         flags         = self._flags
+        patterns      = self._patterns
         hierarchy     = self._hierarchy
         arguments     = iter(arguments)
         context       = hierarchy
@@ -140,6 +147,7 @@ class Scheme:
         open_values   = []
         curr_members  = None
         open_members  = []
+        need_members  = False
         processed     = []
         curr_ones     = None
         open_ones     = []
@@ -196,6 +204,7 @@ class Scheme:
                             # Jump one level down
                             contexts.append(sub_context)
                             context = sub_context
+
                             # If pattern is PRIMAL
                             if pattern.flag_type == Pattern.PRIMAL:
                                 # If primal pattern already used in the current context
@@ -207,12 +216,30 @@ class Scheme:
                             # Create new primal flag context
                             curr_primals = set()
                             primal_flags.append(curr_primals)
+
+                            # If this pattern must be followed by one of its members
+                            if pattern.member_necessity == Pattern.REQUIRED:
+                                need_members = \
+                                    (argument,
+                                     [patterns[m].long_flag for m in pattern.members])
+                            # If this pattern can be followed by "anything"
+                            else:
+                                need_members = False
+
                             # Finish searching
                             raise Scheme._ContextFound
 
                         # If context of pattern not found in current context
                         except KeyError:
                             context_index -= 1
+
+                            # If current context requires a member
+                            if need_members:
+                                raise Scheme.MissingMember(
+                                    (Pattern.EOL() if name is NotImplemented
+                                        else argument),
+                                    *need_members) from None
+
 
                         # Close current context and jump one level up
                         try:
@@ -321,10 +348,10 @@ class Scheme:
                 try:
                     print({
                         Pattern.STATE_SWITCH:
-                            'Flag {!r} does not take any values, '
+                            '{!r} does not take any values, '
                             'but one was given: {!r}',
                         Pattern.SINGLE_VALUE:
-                            'Flag {!r} takes only a single value, '
+                            '{!r} takes only a single value, '
                             'but another one was given: {!r}',
                         }[type].format(flag, value), file=stderr)
                 except KeyError:
@@ -335,16 +362,16 @@ class Scheme:
                 try:
                     print({
                         Pattern.SINGLE_VALUE:
-                            'Flag {!r} takes exactly one value, but '
+                            '{!r} takes exactly one value, but '
                             'none was given before: {!r}',
                         Pattern.COMMON_ARRAY:
-                            'Flag {!r} takes at least one value, but '
+                            '{!r} takes at least one value, but '
                             'none was given before: {!r}',
                         Pattern.UNIQUE_ARRAY:
-                            'Flag {!r} takes at least one value, but '
+                            '{!r} takes at least one value, but '
                             'none was given before: {!r}',
                         Pattern.NAMED_VALUES:
-                            'Flag {!r} takes at least one value pair, but '
+                            '{!r} takes at least one value pair, but '
                             'none was given before: {!r}',
                         }[type].format(flag, value), file=stderr)
                 except KeyError:
@@ -352,24 +379,32 @@ class Scheme:
 
             except Scheme.ArgumentOutOfContext as e:
                 path, flag = e.args
-                print('Flag {!r} is not a member of the following '
+                print('{!r} is not a member of the following '
                       'contexts:'.format(flag),
                       ', '.join('{!r}'.format(f) for f in path) if path
                       else 'no context', file=stderr)
 
             except Scheme.DoubleUniqueArgument as e:
-                print('Flag {!r} cannot be used more than '
+                print('{!r} cannot be used more than '
                       'once'.format(e.args[0]), file=stderr)
 
             except Scheme.DoublePrimalArgument as e:
                 context, flag = e.args
-                print('Flag {!r} cannot be used more than once in its context: '
+                print('{!r} cannot be used more than once in its context: '
                       '{!r}'.format(flag, context), file=stderr)
 
             except Scheme.TooManyMembersUsed as e:
                 context, used, flag = e.args
-                print('Flag {!r} cannot be passed to context {!r} as it '
-                      'already has {!r}'.format(flag, context, used), file=stderr)
+                print('{!r} cannot be passed to context {!r} as it already '
+                      'has {!r}'.format(flag, context, used), file=stderr)
+
+            except Scheme.MissingMember as e:
+                flag, context, members = e.args
+                print('{!r} expected: {}, but got: {!r}'.format(
+                          context,
+                          ' or '.join(repr(m) for m in sorted(members)),
+                          flag),
+                      file=stderr)
 
         # If no error catching
         else:
@@ -449,7 +484,7 @@ class Scheme:
                                spaces   = abs(int(tab_size))*' ',
                                no_color = no_color,
                                owner    = None,
-                               patterns  = self._patterns)
+                               patterns = self._patterns)
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #

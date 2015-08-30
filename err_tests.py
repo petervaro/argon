@@ -4,6 +4,7 @@
 from argon import *
 
 def cmd(scheme, line):
+    print('\n' + '-'*80)
     processed = scheme.parse_line(line, True, True)
     if processed:
         print('==> Processed:\n    ', processed, sep='')
@@ -169,3 +170,34 @@ s = Scheme(Program('app',
 cmd(s, 'app --alpha --beta')
 cmd(s, 'app --gamma --delta --delta --epsilon')
 cmd(s, 'app --gamma --delta -d -D --epsilon')
+
+
+
+#------------------------------------------------------------------------------#
+s = Scheme(Program('app',
+                   member_necessity=Pattern.REQUIRED,
+                   members=('alpha', 'beta', 'gamma')),
+
+               Pattern('alpha',
+                       short_flags='a',
+                       member_necessity=Pattern.REQUIRED,
+                       members=('delta',),
+                       value_type=Pattern.STATE_SWITCH),
+
+                   Pattern('delta',
+                           short_flags='dD',
+                           member_necessity=Pattern.REQUIRED,
+                           members=('gamma',),
+                           value_type=Pattern.STATE_SWITCH),
+
+               Pattern('beta',
+                       value_type=Pattern.STATE_SWITCH),
+
+               Pattern('gamma',
+                       value_type=Pattern.STATE_SWITCH))
+
+# Error: MissingMember
+cmd(s, 'app')
+cmd(s, 'app --alpha')
+cmd(s, 'app --alpha --beta')
+cmd(s, 'app --alpha --delta --beta')
