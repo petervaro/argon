@@ -303,7 +303,7 @@ class Pattern:
             if (self._is_required and
                 not self._values):
                     raise Pattern.UnfinishedPattern(
-                        Pattern.SINGLE_VALUE, self._flag,
+                        Pattern.COMMON_ARRAY, self._flag,
                         Pattern.EOL() if name is NotImplemented else flag) from None
             return self._values
 
@@ -327,7 +327,7 @@ class Pattern:
             if (self._is_required and
                 not self._values):
                     raise Pattern.UnfinishedPattern(
-                        Pattern.SINGLE_VALUE, self._flag,
+                        Pattern.UNIQUE_ARRAY, self._flag,
                         Pattern.EOL() if name is NotImplemented else flag) from None
             return self._values
 
@@ -357,7 +357,7 @@ class Pattern:
                 (self._is_required and
                  not self._values)):
                     raise Pattern.UnfinishedPattern(
-                        Pattern.SINGLE_VALUE, self._flag,
+                        Pattern.NAMED_VALUES, self._flag,
                         Pattern.EOL() if name is NotImplemented else flag) from None
             return self._values
 

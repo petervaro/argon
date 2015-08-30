@@ -29,6 +29,7 @@ class Scheme:
     # Public errors
     class SchemeException(Exception)              : pass
     class LongFlagIsNotUnique(SchemeException)    : pass
+    class ShortFlagIsNotUnique(SchemeException)   : pass
     class InvalidPatternMember(SchemeException)   : pass
     class InvalidArgument(SchemeException)        : pass
     class InvalidMemberReference(SchemeException) : pass
@@ -62,7 +63,7 @@ class Scheme:
         self._flags    = flags    = {}
         self._patterns = patterns = {}
         for pattern in pattern_objects:
-            if patterns.get(pattern.name, None):
+            if pattern.name in patterns:
                 raise Scheme.LongFlagIsNotUnique(
                     'Long flag is used more than once: '
                     '{!r}'.format(pattern.name))
@@ -70,6 +71,10 @@ class Scheme:
             fgraph.add_vertex(pattern.name)
             rgraph.add_vertex(pattern.name)
             for flag in pattern.flags:
+                if flag in flags:
+                    raise Scheme.ShortFlagIsNotUnique(
+                        'Short flag is used more than once: '
+                        '{!r}'.format(flag))
                 flags[flag] = pattern
 
         # Build graph edges
