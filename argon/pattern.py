@@ -160,7 +160,6 @@ class Pattern:
                     {'this': {'hello': '0', 'world': '1'}, 'that': True}
 
         value_necessity:
-
             OPTIONAL:
                 Defining value(s) for the flags of this Pattern is optional.
 
@@ -179,6 +178,17 @@ class Pattern:
 
                     {'this': 'hello', 'that': ['1', '2', '3']}
 
+        value_immediate:
+            Can be True or False (default). Indicates wether a flag can be
+            followed by a value without any spaces, for example: --flag12, where
+            flag is '--flag' and the value is '12'. This option will be
+            overwritten, if the same option is set in the Scheme object.
+
+        value_delimiter:
+            Specifies a string (with no spaces) which is allowed to be between a
+            flag and a value. For example: --flag=12, where flag is '--flag',
+            the delimiter is '=', and the value is '12'. This option will be
+            overwritten, if the same option is set in the Scheme object.
 
         flag_validator:
             This argument specifies the callback function which will validate
@@ -186,6 +196,15 @@ class Pattern:
             assume, that the following characters are valid for a flag:
 
                 abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-
+
+        double_dash:
+            This argument specifies wether the rest of the arguments following
+            the 'double_dash' value, should be stored in an array and should be
+            set as the value of the current pattern. The argument has to be a
+            non-empty string and the value_type of the pattern should be either
+            COMMON_ARRAY or UNIQUE_ARRAY. If the value of 'double_dash' is a
+            valid flag in the current context, the behaviour is undefined.
+            The conventional value is '--'.
 
         description:
             Takes a string or a argon.text.Section which will describe the
@@ -390,6 +409,7 @@ class Pattern:
     def long_flag(self):
         return self._long_flag
 
+
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     @property
     def flags(self):
@@ -428,8 +448,32 @@ class Pattern:
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     @property
+    def value_immediate(self):
+        return self._value_immediate
+    @value_immediate.setter
+    def value_immediate(self, value):
+        self._value_immediate = value
+
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    @property
+    def value_delimiter(self):
+        return self._value_delimiter
+    @value_delimiter.setter
+    def value_delimiter(self, value):
+        self._value_delimiter = value
+
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    @property
     def object_hook(self):
         return self._object_hook
+
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    @property
+    def double_dash(self):
+        return self._double_dash
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
@@ -447,9 +491,12 @@ class Pattern:
                        members          = (),
                        member_type      = ANY,
                        member_necessity = OPTIONAL,
+                       value_delimiter      = '',
+                       value_immediate       = False,
                        value_type       = SINGLE_VALUE,
                        value_necessity  = REQUIRED,
                        flag_validator   = FLAG_VALIDATOR.__func__,
+                       double_dash      = '',
                        description      = ''):
         # Check for flag's validity
         short_flags = set(short_flags)
@@ -537,11 +584,27 @@ class Pattern:
         description.owner = self
         self._description = description
 
+        # Check and store double-dash value
+        if (double_dash and
+            value_type not in (Pattern.COMMON_ARRAY, Pattern.UNIQUE_ARRAY)):
+                raise ValueError("'double_dash' defined, but the 'value_type' of "
+                                 "the pattern is not 'Pattern.COMMON_ARRAY', nor "
+                                 "'Pattern.UNIQUE_ARRAY'")
+        self._double_dash = double_dash
+
+        # Check and store
+        if (value_delimiter and
+            value_delimiter == ' '):
+                raise ValueError("'value_delimiter' cannot be ' ' (space)")
+        self._value_delimiter = value_delimiter
+
         # Store static values
+        self._value_immediate = value_immediate
         if isinstance(members, str):
             self._members = {members}
         else:
             self._members = set(members)
+
 
 
 

@@ -201,3 +201,50 @@ cmd(s, 'app')
 cmd(s, 'app --alpha')
 cmd(s, 'app --alpha --beta')
 cmd(s, 'app --alpha --delta --beta')
+
+
+
+#------------------------------------------------------------------------------#
+s = Scheme(
+    Program('app',
+            member_necessity=Pattern.REQUIRED,
+            members=('option',)),
+
+        Pattern('option',
+                long_prefix='',
+                double_dash='--',
+                value_type=Pattern.UNIQUE_ARRAY,
+                members=('world',)),
+
+            Pattern('world',
+                    value_type=Pattern.STATE_SWITCH))
+
+cmd(s, 'app option --')
+cmd(s, 'app option -- . .. hello world')
+cmd(s, 'app option . .. hello --world')
+cmd(s, 'app option -- . .. hello --world')
+
+
+#------------------------------------------------------------------------------#
+s = Scheme(
+    Program('app',
+            member_necessity=Pattern.REQUIRED,
+            members=('alpha', 'beta', 'gamma')),
+
+        Pattern('alpha',
+                short_flags='aA',
+                value_delimiter='='),
+
+        Pattern('beta',
+                short_flags='bB',
+                value_type=Pattern.UNIQUE_ARRAY,
+                value_delimiter='::'),
+
+        Pattern('gamma',
+                short_flags='gG',
+                value_delimiter='.'),
+    value_immediate=True)
+
+cmd(s, 'app -a12 -bx y z')
+cmd(s, 'app -A=12')
+cmd(s, 'app --gamma.49 --beta::1 23 47 0')

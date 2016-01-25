@@ -3,7 +3,10 @@ Example 002
 Command with limited unique boolean flags.
 """
 # Import python modules
-from sys import argv
+from sys import argv, path
+
+# TODO: Testing hack
+path.append('../argon')
 
 # Import argon modules
 from argon import *

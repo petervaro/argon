@@ -2,6 +2,7 @@
 ## INFO ##
 
 # Import python modules
+from itertools     import chain
 from sys           import stdout, stderr
 from re            import compile, split
 from shutil        import get_terminal_size
@@ -15,14 +16,14 @@ from argon.text    import Section
 from argon.pattern import Pattern
 
 
-
 #------------------------------------------------------------------------------#
 class Scheme:
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     # Internal errors
-    class _ContextFound(Exception)       : pass
-    class _CloseCurrentPattern(Exception) : pass
+    class _ContextFound(Exception)          : pass
+    class _CloseCurrentPattern(Exception)   : pass
+    class _FlagAndValueSeparated(Exception) : pass
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
@@ -42,7 +43,7 @@ class Scheme:
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-    # Internal branch-builder helper recursive function
+    # Internal branch-builder recursive helper function
     @staticmethod
     def _branch(parent):
         branch = {}
@@ -52,7 +53,9 @@ class Scheme:
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-    def __init__(self, *pattern_objects):
+    def __init__(self, *pattern_objects,
+                       value_immediate=None,
+                       value_delimiter=None):
         # Create graphs (forward and reversed)
         fgraph = Graph()
         rgraph = Graph()
@@ -68,6 +71,12 @@ class Scheme:
                     'Long flag is used more than once: '
                     '{!r}'.format(pattern.name))
             patterns[pattern.name] = pattern
+            # Set global options
+            if value_immediate is not None:
+                pattern.value_immediate = value_immediate
+            if value_delimiter is not None:
+                pattern.value_delimiter = value_delimiter
+            # Add pattern to graph
             fgraph.add_vertex(pattern.name)
             rgraph.add_vertex(pattern.name)
             for flag in pattern.flags:
@@ -160,7 +169,7 @@ class Scheme:
         curr_primals  = set()
         primal_flags  = [curr_primals]
 
-        #for argument in arguments:
+        # Each argument in arguments:
         while True:
             # If any unprocessed arguments left
             try:
@@ -178,9 +187,36 @@ class Scheme:
                         unique_flags.add(pattern.name)
                 # If no pattern found
                 except KeyError:
+                    # If flag and value has no separation, or
+                    # flag and value has a specific separation
+                    try:
+                        for pattern in patterns.values():
+                            # If pattern defines a separator between flag and value
+                            if pattern.value_delimiter:
+                                flag, _, value = argument.partition(pattern.value_delimiter)
+                                if flag and value:
+                                    raise Scheme._FlagAndValueSeparated
+                            # If pattern allows no separation between flag and value
+                            if pattern.value_immediate:
+                                for flag in pattern.flags:
+                                    if argument.startswith(flag):
+                                        value = argument[len(flag):]
+                                        raise Scheme._FlagAndValueSeparated
+                    # If flag and value separated, start cycle again
+                    except Scheme._FlagAndValueSeparated:
+                        arguments = chain((flag, value), arguments)
+                        continue
+
                     # If there is an open pattern waiting for values
                     try:
-                        curr_values.add_value(argument)
+                        # If current argument indicates the end of the
+                        # "traditional" arguments list
+                        if argument == pattern.double_dash:
+                            # Process all arguments left
+                            for argument in arguments:
+                                curr_values.add_value(argument)
+                        else:
+                            curr_values.add_value(argument)
                         # Move on to the next argument
                         continue
                     # If there are no open patterns waiting for values
@@ -244,7 +280,6 @@ class Scheme:
                                     (Pattern.EOL() if name is NotImplemented
                                         else argument),
                                     *need_members) from None
-
 
                         # Close current context and jump one level up
                         try:

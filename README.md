@@ -15,7 +15,12 @@ almost any type of interface schemes. Some of its characteristics:
     - flags with optional or mandatory value arrays
       (values both repeated or unique),
     - flags with optional or manadatory named values (key-value pairs)
-- it can handle nested flags (contexts)
+    - flags and values not separated by space
+    - flags and values separated by special character sequence
+    - *double-dash* like end-of-parameters flag
+- it can handle optional or mandatory nested flags (contexts)
+- it can handle program name aliases (build different behaviour inside the same
+  program with different program names)
 - it has an easy to use, very dynamic and lazy declarative style
 - it has a unified parsed return value, but also provides several traverse
   functions for easier argument + value + members checking
