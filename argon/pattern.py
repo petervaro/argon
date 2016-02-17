@@ -418,6 +418,12 @@ class Pattern:
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     @property
+    def prefices(self):
+        yield from self._prefices
+
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    @property
     def members(self):
         yield from self._members
 
@@ -444,6 +450,15 @@ class Pattern:
     @property
     def value_necessity(self):
         return self._value_necessity
+
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    @property
+    def flag_groupable(self):
+        return self._flag_groupable
+    @flag_groupable.setter
+    def flag_groupable(self, value):
+        self._flag_groupable = value
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
@@ -491,8 +506,9 @@ class Pattern:
                        members          = (),
                        member_type      = ANY,
                        member_necessity = OPTIONAL,
-                       value_delimiter      = '',
-                       value_immediate       = False,
+                       flag_groupable   = False,
+                       value_delimiter  = '',
+                       value_immediate  = False,
                        value_type       = SINGLE_VALUE,
                        value_necessity  = REQUIRED,
                        flag_validator   = FLAG_VALIDATOR.__func__,
@@ -516,6 +532,7 @@ class Pattern:
         self._name        = long_flag
         self._long_flag   = long_prefix + long_flag
         self._short_flags = {short_prefix + f for f in short_flags}
+        self._prefices    = long_prefix, short_prefix
 
         # Check and store flag_type
         if flag_type not in Pattern.__FLAG_TYPE:
@@ -592,11 +609,18 @@ class Pattern:
                                  "'Pattern.UNIQUE_ARRAY'")
         self._double_dash = double_dash
 
-        # Check and store
+        # Check and store delimiter
         if (value_delimiter and
             value_delimiter == ' '):
                 raise ValueError("'value_delimiter' cannot be ' ' (space)")
         self._value_delimiter = value_delimiter
+
+        # Check and store grouping option
+        if (flag_groupable and
+            value_type != Pattern.STATE_SWITCH):
+                raise ValueError("For 'flag_groupable' pattern's 'value_type' "
+                                 "has to be 'Pattern.STATE_SWITCH'")
+        self._flag_groupable = flag_groupable
 
         # Store static values
         self._value_immediate = value_immediate

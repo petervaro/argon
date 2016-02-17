@@ -54,8 +54,9 @@ class Scheme:
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     def __init__(self, *pattern_objects,
-                       value_immediate=None,
-                       value_delimiter=None):
+                        flag_groupable  = None,
+                        value_immediate = None,
+                        value_delimiter = None):
         # Create graphs (forward and reversed)
         fgraph = Graph()
         rgraph = Graph()
@@ -72,6 +73,8 @@ class Scheme:
                     '{!r}'.format(pattern.name))
             patterns[pattern.name] = pattern
             # Set global options
+            if flag_groupable is not None:
+                pattern.flag_groupable = flag_groupable
             if value_immediate is not None:
                 pattern.value_immediate = value_immediate
             if value_delimiter is not None:
@@ -196,12 +199,21 @@ class Scheme:
                                 flag, _, value = argument.partition(pattern.value_delimiter)
                                 if flag and value:
                                     raise Scheme._FlagAndValueSeparated
+                            # If pattern can be grouped
+                            if pattern.flag_groupable:
+                                for flag in pattern.flags:
+                                    if argument.startswith(flag):
+                                        for prefix in pattern.prefices:
+                                            if argument.startswith(prefix):
+                                                value = prefix + argument[len(flag):]
+                                                raise Scheme._FlagAndValueSeparated
                             # If pattern allows no separation between flag and value
                             if pattern.value_immediate:
                                 for flag in pattern.flags:
                                     if argument.startswith(flag):
                                         value = argument[len(flag):]
                                         raise Scheme._FlagAndValueSeparated
+
                     # If flag and value separated, start cycle again
                     except Scheme._FlagAndValueSeparated:
                         arguments = chain((flag, value), arguments)
@@ -227,7 +239,7 @@ class Scheme:
             # If all arguments processed
             except StopIteration:
                 # Start a "close-all-left" cycle, where an invalid-name will
-                # cause the context-search to close all left open patterns
+                # cause the context-search to close all open patterns left
                 name = NotImplemented
 
             try:
