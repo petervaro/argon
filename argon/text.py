@@ -15,6 +15,7 @@ class Block:
     """Base class of all text related objects in argon"""
 
     INDENT = 0
+    ENDING = '\n'
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     @property
@@ -28,9 +29,11 @@ class Block:
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     def __init__(self, *blocks,
-                       indent=None):
+                       indent=None,
+                       ending=None):
         self._blocks = blocks
         self._indent = self.INDENT if indent is None else indent
+        self._ending = self.ENDING if ending is None else ending
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
@@ -38,7 +41,6 @@ class Block:
                     stream,
                     width,
                     spaces,
-                    ending   = '\n',
                     owner    = None,
                     patterns = {},
                     no_color = False,
@@ -62,7 +64,7 @@ class Block:
             pass
 
         # Write content to stream
-        print(text, file=stream, end=ending)
+        print(text, file=stream, end=self._ending)
 
 
 
@@ -117,10 +119,7 @@ class Header(Block):
 class Paragraph(Block):
 
     INDENT = 1
-
-    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-    def write(self, *args, **kwargs):
-        super().write(*args, ending='\n\n', **kwargs)
+    ENDING = '\n\n'
 
 
 

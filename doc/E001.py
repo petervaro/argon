@@ -5,9 +5,6 @@ Command with simple boolean flags.
 # Import python modules
 from sys import argv, path
 
-# TODO: Testing hack
-path.append('../argon')
-
 # Import argon modules
 from argon import *
 

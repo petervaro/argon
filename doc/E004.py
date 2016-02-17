@@ -9,9 +9,6 @@ and help text.
 from errno import EINVAL
 from sys   import argv, exit, path
 
-# TODO: Testing hack
-path.append('../argon')
-
 # Import argon modules
 from argon import *
 
