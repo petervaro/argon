@@ -272,3 +272,5 @@ s = Scheme(
 cmd(s, 'app -az')
 cmd(s, 'app -ab')
 cmd(s, 'app -abg')
+cmd(s, 'app --alphabg')
+cmd(s, 'app --alphabetagamma')

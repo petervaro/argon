@@ -13,7 +13,6 @@ from orderedset  import OrderedSet
 from argon.text  import Section, Header, Paragraph, Flags
 
 
-
 #------------------------------------------------------------------------------#
 class Pattern:
     """
@@ -236,6 +235,21 @@ class Pattern:
     class FinishedPattern(PatternException)   : pass
     class UnfinishedPattern(PatternException) : pass
 
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    class Property:
+
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+        def __init__(self, value, default=False):
+            self.value   = value
+            self.default = default
+
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+        @staticmethod
+        def from_value(value, default=False):
+            if isinstance(value, Pattern.Property):
+                return value
+            else:
+                return Pattern.Property(value, default)
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     class EOL:
@@ -439,11 +453,70 @@ class Pattern:
     def flag_type(self):
         return self._flag_type
 
+    @flag_type.setter
+    def flag_type(self, value):
+        # Check and store flag_type
+        if value not in Pattern.__FLAG_TYPE:
+            # If passed value is not a class
+            if not isinstance(value, type):
+                value = value.__class__
+            raise ValueError("'flag_type' has to be Pattern.COMMON "
+                             "or Pattern.PRIMAL or Pattern.UNIQUE, "
+                             "not: {.__qualname__!r}".format(value))
+        self._flag_type = value
+
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    @property
+    def value_type(self):
+        return self._object_hook
+
+    @value_type.setter
+    def value_type(self, value):
+        # Check and store value_type
+        if value not in Pattern.__VALUE_TYPE:
+            # If passed value is not a class
+            if not isinstance(value, type):
+                value = value.__class__
+            raise ValueError("'value_type' has to be Pattern.STATE_SWITCH "
+                             "or Pattern.SINGLE_VALUE or Pattern.COMMON_ARRAY "
+                             "or Pattern.UNIQUE_ARRAY or Pattern.NAMED_VALUES, "
+                             "not: {!r}".format(value))
+        self._object_hook = value
+
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    @property
+    def member_necessity(self):
+        return self._member_necessity
+
+    @member_necessity.setter
+    def member_necessity(self, value):
+        # Check and store member_necessity
+        if value not in Pattern.__NECESSITY:
+            # If passed value is not a class
+            if not isinstance(value, type):
+                value = value.__class__
+            raise ValueError("'member_necessity' has to be Pattern.OPTIONAL or "
+                             "Pattern.REQUIRED, not: {!r}".format(value))
+        self._member_necessity = value
+
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     @property
     def member_type(self):
         return self._member_type
+
+    @member_type.setter
+    def member_type(self, value):
+        # Check and store member_type
+        if value not in Pattern.__MEMBER_TYPE:
+            # If passed value is not a class
+            if not isinstance(value, type):
+                value = value.__class__
+            raise ValueError("'member_type' has to be Pattern.ONE or "
+                             "Pattern.ANY, not: {!r}".format(value))
+        self._member_type = value
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
@@ -456,8 +529,14 @@ class Pattern:
     @property
     def flag_groupable(self):
         return self._flag_groupable
+
     @flag_groupable.setter
     def flag_groupable(self, value):
+        # Check and store grouping option
+        if (value and
+            self.value_type != Pattern.STATE_SWITCH):
+                raise ValueError("For 'flag_groupable' pattern's 'value_type' "
+                                 "has to be 'Pattern.STATE_SWITCH'")
         self._flag_groupable = value
 
 
@@ -476,6 +555,10 @@ class Pattern:
         return self._value_delimiter
     @value_delimiter.setter
     def value_delimiter(self, value):
+        # Check and store delimiter
+        if (value and
+            value == ' '):
+                raise ValueError("'value_delimiter' cannot be ' ' (space)")
         self._value_delimiter = value
 
 
@@ -490,30 +573,73 @@ class Pattern:
     def double_dash(self):
         return self._double_dash
 
+    @double_dash.setter
+    def double_dash(self, value):
+        # Check and store double-dash value
+        if (value and
+            self.value_type not in (Pattern.COMMON_ARRAY,
+                                    Pattern.UNIQUE_ARRAY)):
+                raise ValueError("'double_dash' defined, but the 'value_type' "
+                                 "of the pattern is not 'Pattern.COMMON_ARRAY'"
+                                 ", nor 'Pattern.UNIQUE_ARRAY'")
+        self._double_dash = value
+
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     @property
     def description(self):
         return self._description
 
+    @description.setter
+    def description(self, value):
+        # Check and store description
+        if isinstance(value, str):
+            value = Section(
+                Flags({Pattern.STATE_SWITCH: '',
+                       Pattern.SINGLE_VALUE: necessity('<value>'),
+                       Pattern.COMMON_ARRAY: necessity('<value>...'),
+                       Pattern.UNIQUE_ARRAY: necessity('<value>...'),
+                       Pattern.NAMED_VALUES: necessity('<key> <value>...')}[self.value_type]),
+                Paragraph(value))
+        elif not isinstance(value, Section):
+            raise TypeError("'description' expected str or argon.text.Section, "
+                            "got: {.__class__.__qualname__!r}".format(value))
+        value.owner = self
+        self._description = value
+
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     def __init__(self, long_flag,
                        short_flags      = (),
-                       long_prefix      = '--',
-                       short_prefix     = '-',
-                       flag_type        = COMMON,
                        members          = (),
-                       member_type      = ANY,
-                       member_necessity = OPTIONAL,
-                       flag_groupable   = False,
-                       value_delimiter  = '',
-                       value_immediate  = False,
-                       value_type       = SINGLE_VALUE,
-                       value_necessity  = REQUIRED,
-                       flag_validator   = FLAG_VALIDATOR.__func__,
-                       double_dash      = '',
-                       description      = ''):
+                       long_prefix      = Property('--', default=True),
+                       short_prefix     = Property('-', default=True),
+                       flag_type        = Property(COMMON, default=True),
+                       member_type      = Property(ANY, default=True),
+                       member_necessity = Property(OPTIONAL, default=True),
+                       flag_groupable   = Property(False, default=True),
+                       value_delimiter  = Property('', default=True),
+                       value_immediate  = Property(False, default=True),
+                       value_type       = Property(SINGLE_VALUE, default=True),
+                       value_necessity  = Property(REQUIRED, default=True),
+                       flag_validator   = Property(FLAG_VALIDATOR.__func__, default=True),
+                       double_dash      = Property('', default=True),
+                       description      = Property('', default=True)):
+
+        self.update(long_prefix      = long_prefix,
+                    short_prefix     = short_prefix,
+                    flag_type        = flag_type,
+                    member_type      = member_type,
+                    member_necessity = member_necessity,
+                    flag_groupable   = flag_groupable,
+                    value_delimiter  = value_delimiter,
+                    value_immediate  = value_immediate,
+                    value_type       = value_type,
+                    value_necessity  = value_necessity,
+                    flag_validator   = flag_validator,
+                    double_dash      = double_dash,
+                    description      = description)
+
         # Check for flag's validity
         short_flags = set(short_flags)
         for flag in chain((long_flag,), short_flags):
@@ -534,27 +660,6 @@ class Pattern:
         self._short_flags = {short_prefix + f for f in short_flags}
         self._prefices    = long_prefix, short_prefix
 
-        # Check and store flag_type
-        if flag_type not in Pattern.__FLAG_TYPE:
-            # If passed value is not a class
-            if not isinstance(flag_type, type):
-                flag_type = flag_type.__class__
-            raise ValueError("'flag_type' has to be Pattern.COMMON "
-                             "or Pattern.PRIMAL or Pattern.UNIQUE, "
-                             "not: {.__qualname__!r}".format(flag_type))
-        self._flag_type = flag_type
-
-        # Check and store value_type
-        if value_type not in Pattern.__VALUE_TYPE:
-            # If passed value is not a class
-            if not isinstance(value_type, type):
-                value_type = value_type.__class__
-            raise ValueError("'value_type' has to be Pattern.STATE_SWITCH "
-                             "or Pattern.SINGLE_VALUE or Pattern.COMMON_ARRAY "
-                             "or Pattern.UNIQUE_ARRAY or Pattern.NAMED_VALUES, "
-                             "not: {!r}".format(value_type))
-        self._object_hook = value_type
-
         # Check and store value_necessity
         if value_necessity not in Pattern.__NECESSITY:
             # If passed value is not a class
@@ -568,60 +673,6 @@ class Pattern:
         else:
             necessity = lambda s: '[' + s + ']'
 
-        # Check and store member_type
-        if member_type not in Pattern.__MEMBER_TYPE:
-            # If passed value is not a class
-            if not isinstance(member_type, type):
-                member_type = member_type.__class__
-            raise ValueError("'member_type' has to be Pattern.ONE or "
-                             "Pattern.ANY, not: {!r}".format(member_type))
-        self._member_type = member_type
-
-        # Check and store member_necessity
-        if member_necessity not in Pattern.__NECESSITY:
-            # If passed value is not a class
-            if not isinstance(member_necessity, type):
-                member_necessity = member_necessity.__class__
-            raise ValueError("'member_necessity' has to be Pattern.OPTIONAL or "
-                             "Pattern.REQUIRED, not: {!r}".format(member_necessity))
-        self._member_necessity = member_necessity
-
-        # Check and store description
-        if isinstance(description, str):
-            description = Section(
-                Flags({Pattern.STATE_SWITCH: '',
-                       Pattern.SINGLE_VALUE: necessity('<value>'),
-                       Pattern.COMMON_ARRAY: necessity('<value>...'),
-                       Pattern.UNIQUE_ARRAY: necessity('<value>...'),
-                       Pattern.NAMED_VALUES: necessity('<key> <value>...')}[value_type]),
-                Paragraph(description))
-        elif not isinstance(description, Section):
-            raise TypeError("'description' expected str or argon.text.Section, "
-                            "got: {.__class__.__qualname__!r}".format(description))
-        description.owner = self
-        self._description = description
-
-        # Check and store double-dash value
-        if (double_dash and
-            value_type not in (Pattern.COMMON_ARRAY, Pattern.UNIQUE_ARRAY)):
-                raise ValueError("'double_dash' defined, but the 'value_type' of "
-                                 "the pattern is not 'Pattern.COMMON_ARRAY', nor "
-                                 "'Pattern.UNIQUE_ARRAY'")
-        self._double_dash = double_dash
-
-        # Check and store delimiter
-        if (value_delimiter and
-            value_delimiter == ' '):
-                raise ValueError("'value_delimiter' cannot be ' ' (space)")
-        self._value_delimiter = value_delimiter
-
-        # Check and store grouping option
-        if (flag_groupable and
-            value_type != Pattern.STATE_SWITCH):
-                raise ValueError("For 'flag_groupable' pattern's 'value_type' "
-                                 "has to be 'Pattern.STATE_SWITCH'")
-        self._flag_groupable = flag_groupable
-
         # Store static values
         self._value_immediate = value_immediate
         if isinstance(members, str):
@@ -629,6 +680,20 @@ class Pattern:
         else:
             self._members = set(members)
 
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    def update(self, force: bool=True, **properties: dict):
+        for property, value in properties.items():
+            try:
+                # If forced-update or property is not set
+                if (force or
+                    not getattr(self, property).default)
+                        raise AttributeError
+            # If property is not present, or it is the
+            # default one and it is forced to be updated
+            except AttributeError:
+                # Set property
+                setattr(self, property, Property.from_value(value))
 
 
 

@@ -32,6 +32,7 @@ class Scheme:
     class LongFlagIsNotUnique(SchemeException)    : pass
     class ShortFlagIsNotUnique(SchemeException)   : pass
     class InvalidPatternMember(SchemeException)   : pass
+    class InvalidPatternProperty(SchemeException) : pass
     class InvalidArgument(SchemeException)        : pass
     class InvalidMemberReference(SchemeException) : pass
     class ArgumentOutOfContext(SchemeException)   : pass
@@ -53,10 +54,7 @@ class Scheme:
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-    def __init__(self, *pattern_objects,
-                        flag_groupable  = None,
-                        value_immediate = None,
-                        value_delimiter = None):
+    def __init__(self, *pattern_objects, **pattern_properties):
         # Create graphs (forward and reversed)
         fgraph = Graph()
         rgraph = Graph()
@@ -72,13 +70,13 @@ class Scheme:
                     'Long flag is used more than once: '
                     '{!r}'.format(pattern.name))
             patterns[pattern.name] = pattern
+
             # Set global options
-            if flag_groupable is not None:
-                pattern.flag_groupable = flag_groupable
-            if value_immediate is not None:
-                pattern.value_immediate = value_immediate
-            if value_delimiter is not None:
-                pattern.value_delimiter = value_delimiter
+            try:
+                pattern.update(force=False, **pattern_properties)
+            except ValueError as e:
+                raise Scheme.InvalidPatternProperty(str(e)) from None
+
             # Add pattern to graph
             fgraph.add_vertex(pattern.name)
             rgraph.add_vertex(pattern.name)
@@ -213,7 +211,6 @@ class Scheme:
                                     if argument.startswith(flag):
                                         value = argument[len(flag):]
                                         raise Scheme._FlagAndValueSeparated
-
                     # If flag and value separated, start cycle again
                     except Scheme._FlagAndValueSeparated:
                         arguments = chain((flag, value), arguments)
