@@ -73,7 +73,7 @@ class Scheme:
 
             # Set global options
             try:
-                pattern.update(force=False, **pattern_properties)
+                pattern.update(pattern_properties, force=False)
             except ValueError as e:
                 raise Scheme.InvalidPatternProperty(str(e)) from None
 
@@ -480,7 +480,6 @@ class Scheme:
     def branch_traverse(patterns):
         """
         Returns:
-
             (<long_flag>, <value>)
         """
         for flag, value, members in patterns:
@@ -493,7 +492,6 @@ class Scheme:
     def branch_full_traverse(patterns, path=[]):
         """
         Returns:
-
             ([<group>..., <long_flag>], <value>)
         """
         for flag, value, members in patterns:
@@ -507,10 +505,7 @@ class Scheme:
     @staticmethod
     def breadth_first_traverse(patterns):
         """
-        Traverse will walk through the translated arguments as a generator.
-        Unlike the self.translate_args() method, it returns a yuple of four
-        values:
-
+        Returns:
             (<group>, <long_flag>, <value>, [<members>...])
         """
         patterns = [(None, patterns)]

@@ -441,11 +441,12 @@ class Pattern:
     def members(self):
         yield from self._members
 
-
-    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-    @property
-    def member_necessity(self):
-        return self._member_necessity
+    @members.setter
+    def members(self, value):
+        if isinstance(value, str):
+            self._members = {value}
+        else:
+            self._members = set(value)
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
@@ -524,6 +525,17 @@ class Pattern:
     def value_necessity(self):
         return self._value_necessity
 
+    @value_necessity.setter
+    def value_necessity(self, value):
+        # Check and store value_necessity
+        if value not in Pattern.__NECESSITY:
+            # If passed value is not a class
+            if not isinstance(value, type):
+                value = value.__class__
+            raise ValueError("'value_necessity' has to be Pattern.OPTIONAL or "
+                             "Pattern.REQUIRED, not: {!r}".format(value))
+        self._value_necessity = value
+
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     @property
@@ -544,6 +556,7 @@ class Pattern:
     @property
     def value_immediate(self):
         return self._value_immediate
+
     @value_immediate.setter
     def value_immediate(self, value):
         self._value_immediate = value
@@ -592,6 +605,10 @@ class Pattern:
 
     @description.setter
     def description(self, value):
+        if self.value_necessity:
+            necessity = lambda s: s
+        else:
+            necessity = lambda s: '[' + s + ']'
         # Check and store description
         if isinstance(value, str):
             value = Section(
@@ -611,34 +628,20 @@ class Pattern:
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     def __init__(self, long_flag,
                        short_flags      = (),
-                       members          = (),
-                       long_prefix      = Property('--', default=True),
-                       short_prefix     = Property('-', default=True),
-                       flag_type        = Property(COMMON, default=True),
-                       member_type      = Property(ANY, default=True),
-                       member_necessity = Property(OPTIONAL, default=True),
-                       flag_groupable   = Property(False, default=True),
-                       value_delimiter  = Property('', default=True),
-                       value_immediate  = Property(False, default=True),
+                       members          = Property(()          , default=True),
+                       long_prefix      = Property('--'        , default=True),
+                       short_prefix     = Property('-'         , default=True),
+                       flag_type        = Property(COMMON      , default=True),
+                       member_type      = Property(ANY         , default=True),
+                       member_necessity = Property(OPTIONAL    , default=True),
+                       flag_groupable   = Property(False       , default=True),
+                       value_delimiter  = Property(''          , default=True),
+                       value_immediate  = Property(False       , default=True),
                        value_type       = Property(SINGLE_VALUE, default=True),
-                       value_necessity  = Property(REQUIRED, default=True),
+                       value_necessity  = Property(REQUIRED    , default=True),
                        flag_validator   = Property(FLAG_VALIDATOR.__func__, default=True),
-                       double_dash      = Property('', default=True),
-                       description      = Property('', default=True)):
-
-        self.update(long_prefix      = long_prefix,
-                    short_prefix     = short_prefix,
-                    flag_type        = flag_type,
-                    member_type      = member_type,
-                    member_necessity = member_necessity,
-                    flag_groupable   = flag_groupable,
-                    value_delimiter  = value_delimiter,
-                    value_immediate  = value_immediate,
-                    value_type       = value_type,
-                    value_necessity  = value_necessity,
-                    flag_validator   = flag_validator,
-                    double_dash      = double_dash,
-                    description      = description)
+                       double_dash      = Property(''          , default=True),
+                       description      = Property(''          , default=True)):
 
         # Check for flag's validity
         short_flags = set(short_flags)
@@ -660,40 +663,36 @@ class Pattern:
         self._short_flags = {short_prefix + f for f in short_flags}
         self._prefices    = long_prefix, short_prefix
 
-        # Check and store value_necessity
-        if value_necessity not in Pattern.__NECESSITY:
-            # If passed value is not a class
-            if not isinstance(value_necessity, type):
-                value_necessity = value_necessity.__class__
-            raise ValueError("'value_necessity' has to be Pattern.OPTIONAL or "
-                             "Pattern.REQUIRED, not: {!r}".format(value_necessity))
-        self._value_necessity = value_necessity
-        if value_necessity:
-            necessity = lambda s: s
-        else:
-            necessity = lambda s: '[' + s + ']'
-
-        # Store static values
-        self._value_immediate = value_immediate
-        if isinstance(members, str):
-            self._members = {members}
-        else:
-            self._members = set(members)
+        # Store pattern preferences
+        self.update(OrderedDict([('members'         , members),
+                                 ('long_prefix'     , long_prefix),
+                                 ('short_prefix'    , short_prefix),
+                                 ('flag_type'       , flag_type),
+                                 ('member_type'     , member_type),
+                                 ('member_necessity', member_necessity),
+                                 ('flag_groupable'  , flag_groupable),
+                                 ('value_delimiter' , value_delimiter),
+                                 ('value_immediate' , value_immediate),
+                                 ('value_type'      , value_type),
+                                 ('value_necessity' , value_necessity),
+                                 ('flag_validator'  , flag_validator),
+                                 ('double_dash'     , double_dash),
+                                 ('description'     , description)]))
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-    def update(self, force: bool=True, **properties: dict):
+    def update(self, properties, force=True):
         for property, value in properties.items():
             try:
                 # If forced-update or property is not set
                 if (force or
-                    not getattr(self, property).default)
+                    not getattr(self, property).default):
                         raise AttributeError
             # If property is not present, or it is the
             # default one and it is forced to be updated
             except AttributeError:
                 # Set property
-                setattr(self, property, Property.from_value(value))
+                setattr(self, property, Pattern.Property.from_value(value))
 
 
 
