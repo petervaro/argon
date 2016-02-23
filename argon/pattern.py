@@ -236,22 +236,6 @@ class Pattern:
     class UnfinishedPattern(PatternException) : pass
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-    class Property:
-
-        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-        def __init__(self, value, default=False):
-            self.value   = value
-            self.default = default
-
-        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-        @staticmethod
-        def from_value(value, default=False):
-            if isinstance(value, Pattern.Property):
-                return value
-            else:
-                return Pattern.Property(value, default)
-
-    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     class EOL:
         def __repr__(self):
             return '<EOL>'
@@ -410,6 +394,22 @@ class Pattern:
                     COMMON_ARRAY,
                     UNIQUE_ARRAY,
                     NAMED_VALUES)
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    # Default values
+    MEMBERS          = ()
+    LONG_PREFIX      = '--'
+    SHORT_PREFIX     = '-'
+    FLAG_TYPE        = COMMON
+    MEMBER_TYPE      = ANY
+    MEMBER_NECESSITY = OPTIONAL
+    FLAG_GROUPABLE   = False
+    VALUE_DELIMITER  = ''
+    VALUE_IMMEDIATE  = False
+    VALUE_TYPE       = SINGLE_VALUE
+    VALUE_NECESSITY  = REQUIRED
+    DOUBLE_DASH      = ''
+    DESCRIPTION      = ''
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
@@ -626,22 +626,7 @@ class Pattern:
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
-    def __init__(self, long_flag,
-                       short_flags      = (),
-                       members          = Property(()          , default=True),
-                       long_prefix      = Property('--'        , default=True),
-                       short_prefix     = Property('-'         , default=True),
-                       flag_type        = Property(COMMON      , default=True),
-                       member_type      = Property(ANY         , default=True),
-                       member_necessity = Property(OPTIONAL    , default=True),
-                       flag_groupable   = Property(False       , default=True),
-                       value_delimiter  = Property(''          , default=True),
-                       value_immediate  = Property(False       , default=True),
-                       value_type       = Property(SINGLE_VALUE, default=True),
-                       value_necessity  = Property(REQUIRED    , default=True),
-                       flag_validator   = Property(FLAG_VALIDATOR.__func__, default=True),
-                       double_dash      = Property(''          , default=True),
-                       description      = Property(''          , default=True)):
+    def __init__(self, long_flag, short_flags, **properties):
 
         # Check for flag's validity
         short_flags = set(short_flags)
@@ -664,35 +649,53 @@ class Pattern:
         self._prefices    = long_prefix, short_prefix
 
         # Store pattern preferences
-        self.update(OrderedDict([('members'         , members),
-                                 ('long_prefix'     , long_prefix),
-                                 ('short_prefix'    , short_prefix),
-                                 ('flag_type'       , flag_type),
-                                 ('member_type'     , member_type),
-                                 ('member_necessity', member_necessity),
-                                 ('flag_groupable'  , flag_groupable),
-                                 ('value_delimiter' , value_delimiter),
-                                 ('value_immediate' , value_immediate),
-                                 ('value_type'      , value_type),
-                                 ('value_necessity' , value_necessity),
-                                 ('flag_validator'  , flag_validator),
-                                 ('double_dash'     , double_dash),
-                                 ('description'     , description)]))
+        self.update(OrderedDict((k, properties[k]) for k in ('members',
+                                                             'long_prefix',
+                                                             'short_prefix',
+                                                             'flag_type',
+                                                             'member_type',
+                                                             'member_necessity',
+                                                             'flag_groupable',
+                                                             'value_delimiter',
+                                                             'value_immediate',
+                                                             'value_type',
+                                                             'value_necessity',
+                                                             'flag_validator',
+                                                             'double_dash',
+                                                             'description') if k in properties))
 
 
     #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
     def update(self, properties, force=True):
         for property, value in properties.items():
             try:
-                # If forced-update or property is not set
+                # If force-update or property is not set
                 if (force or
-                    not getattr(self, property).default):
+                    getattr(self, property)):
                         raise AttributeError
-            # If property is not present, or it is the
-            # default one and it is forced to be updated
+            # If attribute is force-updated or not present
             except AttributeError:
-                # Set property
-                setattr(self, property, Pattern.Property.from_value(value))
+                setattr(self, property, value)
+
+
+    #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+    def finalize(self):
+        for property in ('members',
+                         'long_prefix',
+                         'short_prefix',
+                         'flag_type',
+                         'member_type',
+                         'member_necessity',
+                         'flag_groupable',
+                         'value_delimiter',
+                         'value_immediate',
+                         'value_type',
+                         'value_necessity',
+                         'flag_validator',
+                         'double_dash',
+                         'description'):
+            if not hasattr(self, property):
+                setattr(self, property, getattr(self, property.upper()))
 
 
 

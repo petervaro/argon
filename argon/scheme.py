@@ -74,7 +74,8 @@ class Scheme:
             # Set global options
             try:
                 pattern.update(pattern_properties, force=False)
-            except ValueError as e:
+                pattern.finalize()
+            except (ValueError, AttributeError) as e:
                 raise Scheme.InvalidPatternProperty(str(e)) from None
 
             # Add pattern to graph

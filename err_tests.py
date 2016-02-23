@@ -257,17 +257,15 @@ s = Scheme(
             members=('alpha', 'beta', 'gamma')),
 
         Pattern('alpha',
-                short_flags='aA',
-                value_type=Pattern.STATE_SWITCH),
+                short_flags='aA'),
 
         Pattern('beta',
-                short_flags='bB',
-                value_type=Pattern.STATE_SWITCH),
+                short_flags='bB'),
 
         Pattern('gamma',
-                short_flags='gG',
-                value_type=Pattern.STATE_SWITCH),
-        flag_groupable=True)
+                short_flags='gG'),
+        flag_groupable=True,
+        value_type=Pattern.STATE_SWITCH)
 
 cmd(s, 'app -az')
 cmd(s, 'app -ab')
